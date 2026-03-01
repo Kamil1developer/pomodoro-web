@@ -32,6 +32,10 @@ app:
     text-model: ${OPENAI_MODEL:gpt-4.1-mini}
     vision-model: ${OPENAI_VISION_MODEL:gpt-4.1-mini}
     image-model: ${OPENAI_IMAGE_MODEL:gpt-image-1}
+    ollama-api-url: ${OLLAMA_API_URL:http://ollama:11434}
+    ollama-model: ${OLLAMA_MODEL:llama3.2:1b}
+    local-image-api-url: ${LOCAL_IMAGE_API_URL:http://local-image:7860}
+    local-image-steps: ${LOCAL_IMAGE_STEPS:4}
   uploads-dir: ${UPLOADS_DIR:uploads}
 
 springdoc:

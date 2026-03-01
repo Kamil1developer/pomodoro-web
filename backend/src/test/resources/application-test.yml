@@ -18,4 +18,8 @@ app:
     refresh-expiration-days: 7
   ai:
     mode: mock
+    ollama-api-url: http://localhost:11434
+    ollama-model: llama3.2:1b
+    local-image-api-url: http://localhost:7860
+    local-image-steps: 2
   uploads-dir: target/test-uploads

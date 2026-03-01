@@ -9,6 +9,7 @@
 - Backend: Java 21, Spring Boot 3, Spring Security (JWT), Validation, JPA, Scheduler, OpenAPI.
 - DB: PostgreSQL 16.
 - Frontend: React + TypeScript + Vite.
+- Локальная генерация изображений (опционально): FastAPI + Diffusers (`local-image-service`).
 - Хранение файлов: локально в backend `uploads/` + путь в БД.
 - Оркестрация: Docker Compose (`postgres + backend + frontend`).
 
@@ -16,6 +17,7 @@
 
 - `backend/` — Spring Boot API
 - `frontend/` — React приложение
+- `local-image-service/` — локальный сервис генерации изображений (Diffusers)
 - `docker-compose.yml` — локальный запуск всего стека
 - `.env.example` — пример переменных окружения
 
@@ -38,7 +40,7 @@ docker compose up --build
 
 Если порт `8080`/`5173`/`5432` занят, измените `BACKEND_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT` в `.env`.
 
-## AI режимы (`mock` и `openai`)
+## AI режимы (`mock`, `openai`, `local`)
 
 Настраивается через `.env`:
 
@@ -49,6 +51,22 @@ docker compose up --build
 - `AI_MODE=openai`:
   - реальные вызовы OpenAI API,
   - нужны `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_VISION_MODEL`, `OPENAI_IMAGE_MODEL`.
+
+- `AI_MODE=local`:
+  - чат идёт через локальный Ollama (`OLLAMA_MODEL`),
+  - мотивационные картинки генерируются локально через `local-image-service` (Diffusers),
+  - запускать с профилем Compose и режимом `local`:
+```bash
+AI_MODE=local docker compose --profile local-ai up --build
+```
+  - либо выставить `AI_MODE=local` в `.env`,
+  - первый запуск может занять много времени из-за скачивания весов моделей,
+  - один раз скачайте модель Ollama:
+```bash
+docker compose exec ollama ollama pull llama3.2:1b
+```
+  - по умолчанию для `local-image-service` используется лёгкая модель `hf-internal-testing/tiny-stable-diffusion-pipe` (стабильнее для ноутбуков по памяти).
+  - если у вас больше RAM и нужна картинка получше, можно в `.env` задать `LOCAL_IMAGE_MODEL_ID=segmind/tiny-sd`.
 
 ## Основные API эндпоинты
 
@@ -134,3 +152,4 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm insta
 - Статистика в экране `Статистика` строится из `daily_summaries` (после запуска scheduler).
 - Изображения доступны по URL `/uploads/...` для удобного рендера в frontend.
 - В `mock` режиме мотивационные изображения генерируются как SVG-заглушки с контекстом цели.
+- В `local` режиме анализ фото работает по эвристике комментария (локальная vision-модель не подключалась).

@@ -7,5 +7,13 @@ public record AppProperties(Jwt jwt, Ai ai, String uploadsDir) {
   public record Jwt(String secret, long accessExpirationMinutes, long refreshExpirationDays) {}
 
   public record Ai(
-      String mode, String openaiApiKey, String textModel, String visionModel, String imageModel) {}
+      String mode,
+      String openaiApiKey,
+      String textModel,
+      String visionModel,
+      String imageModel,
+      String ollamaApiUrl,
+      String ollamaModel,
+      String localImageApiUrl,
+      int localImageSteps) {}
 }

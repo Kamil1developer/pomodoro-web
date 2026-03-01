@@ -1,0 +1,9 @@
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pillow==11.0.0
+torch==2.5.1
+diffusers==0.32.2
+transformers==4.47.1
+accelerate==1.2.1
+safetensors==0.4.5
+sentencepiece==0.2.0
