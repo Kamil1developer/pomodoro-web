@@ -166,9 +166,21 @@ public class OpenAiService implements AiService {
       }
       return new AiDtos.ImageResult(path, prompt);
     } catch (Exception e) {
-      byte[] fallback = "Image generation failed".getBytes(StandardCharsets.UTF_8);
-      String path = storageService.storeBytes(fallback, "motivation", "txt");
+      String svg =
+          "<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><rect width='100%' height='100%' fill='#f8f7f2'/>"
+              + "<text x='70' y='220' font-size='56' fill='#1d4f47'>OpenAI Image Unavailable</text>"
+              + "<text x='70' y='305' font-size='30' fill='#374151'>"
+              + escape(goalContext.title())
+              + "</text>"
+              + "<text x='70' y='365' font-size='24' fill='#6b7280'>"
+              + escape(styleOptions == null ? "cinematic" : styleOptions)
+              + "</text></svg>";
+      String path = storageService.storeBytes(svg.getBytes(StandardCharsets.UTF_8), "motivation", "svg");
       return new AiDtos.ImageResult(path, prompt);
     }
+  }
+
+  private String escape(String text) {
+    return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
   }
 }

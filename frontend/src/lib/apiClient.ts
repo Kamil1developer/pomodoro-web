@@ -4,6 +4,7 @@ import {
   type Goal,
   type GoalProgress,
   type GoalStats,
+  type MotivationFeed,
   type MotivationImage,
   type MotivationQuote,
   type ReportItem,
@@ -14,6 +15,20 @@ import { clearTokens, getTokens, setTokens } from './authStorage';
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:8080/api';
+const API_ORIGIN = new URL(API_BASE_URL).origin;
+
+export function resolveAssetUrl(path: string): string {
+  if (!path) {
+    return '';
+  }
+  if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('data:')) {
+    return path;
+  }
+  if (path.startsWith('/')) {
+    return `${API_ORIGIN}${path}`;
+  }
+  return `${API_ORIGIN}/${path}`;
+}
 
 export class HttpError extends Error {
   status: number;
@@ -249,6 +264,11 @@ export const api = {
   },
   getMotivationQuote(goalId: number) {
     return request<MotivationQuote>(`/goals/${goalId}/motivation/quote`);
+  },
+  refreshMotivationFeed(goalId: number) {
+    return request<MotivationFeed>(`/goals/${goalId}/motivation/refresh-feed`, {
+      method: 'POST'
+    });
   },
   favoriteMotivation(imageId: number, isFavorite: boolean) {
     return request<MotivationImage>(`/motivation/${imageId}/favorite`, {

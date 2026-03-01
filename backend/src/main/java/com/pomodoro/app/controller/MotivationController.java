@@ -34,6 +34,11 @@ public class MotivationController {
     return motivationService.getDailyQuote(AuthUtil.currentUserId(), goalId);
   }
 
+  @PostMapping("/goals/{goalId}/motivation/refresh-feed")
+  public MotivationDtos.FeedRefreshResponse refreshFeed(@PathVariable Long goalId) {
+    return motivationService.refreshFeed(AuthUtil.currentUserId(), goalId);
+  }
+
   @PatchMapping("/motivation/{imgId}/favorite")
   public MotivationDtos.MotivationResponse favorite(
       @PathVariable Long imgId, @RequestBody @Valid MotivationDtos.FavoriteRequest request) {

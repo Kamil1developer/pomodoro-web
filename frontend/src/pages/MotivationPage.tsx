@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { api } from '../lib/apiClient';
+import { api, resolveAssetUrl } from '../lib/apiClient';
 import { shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
 import type { MotivationImage, MotivationQuote } from '../types/api';
@@ -8,13 +8,32 @@ export function MotivationPage() {
   const { selectedGoal } = useAppShellContext();
   const [images, setImages] = useState<MotivationImage[]>([]);
   const [quote, setQuote] = useState<MotivationQuote | null>(null);
-  const [styleOptions, setStyleOptions] = useState('cinematic success poster');
+  const [showRussianQuote, setShowRussianQuote] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  async function refreshFeed() {
+    if (!selectedGoal) {
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      const feed = await api.refreshMotivationFeed(selectedGoal.id);
+      setImages(feed.images);
+      setQuote(feed.quote);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (!selectedGoal) {
       setImages([]);
+      setQuote(null);
       return;
     }
 
@@ -22,12 +41,9 @@ export function MotivationPage() {
       setLoading(true);
       setError(null);
       try {
-        const [data, quoteData] = await Promise.all([
-          api.getMotivation(selectedGoal.id),
-          api.getMotivationQuote(selectedGoal.id)
-        ]);
-        setImages(data);
-        setQuote(quoteData);
+        const feed = await api.refreshMotivationFeed(selectedGoal.id);
+        setImages(feed.images);
+        setQuote(feed.quote);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -37,24 +53,6 @@ export function MotivationPage() {
 
     void run();
   }, [selectedGoal]);
-
-  async function generateImage() {
-    if (!selectedGoal) {
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-    try {
-      await api.generateMotivation(selectedGoal.id, styleOptions.trim());
-      const data = await api.getMotivation(selectedGoal.id);
-      setImages(data);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   async function toggleFavorite(image: MotivationImage) {
     try {
@@ -88,21 +86,22 @@ export function MotivationPage() {
       <section className="card">
         <h3>Генерация мотивации</h3>
         <p className="muted">Цель: {selectedGoal.title}</p>
+        <p className="muted">Лента обновляется при открытии страницы или по кнопке ниже.</p>
         {quote ? (
           <blockquote className="quote-block">
-            <p>“{quote.quoteText}”</p>
+            <p>“{showRussianQuote ? quote.quoteTextRu || quote.quoteText : quote.quoteText}”</p>
             <footer>— {quote.quoteAuthor}</footer>
           </blockquote>
         ) : null}
-        <div className="inline-fields">
-          <input
-            value={styleOptions}
-            onChange={(event) => setStyleOptions(event.target.value)}
-            placeholder="Стиль изображения"
-          />
-          <button className="btn" onClick={() => void generateImage()} disabled={loading}>
-            {loading ? 'Генерация...' : 'Сгенерировать'}
+        <div className="inline-actions">
+          <button className="btn" onClick={() => void refreshFeed()} disabled={loading}>
+            {loading ? 'Обновление...' : 'Обновить ленту'}
           </button>
+          {quote ? (
+            <button className="btn btn-ghost" onClick={() => setShowRussianQuote((prev) => !prev)}>
+              {showRussianQuote ? 'Показать оригинал' : 'Перевести на русский'}
+            </button>
+          ) : null}
         </div>
       </section>
 
@@ -114,13 +113,13 @@ export function MotivationPage() {
           <strong>{images.length}</strong>
         </div>
         {images.length === 0 ? (
-          <p className="muted">Пока пусто. Нажмите «Сгенерировать».</p>
+          <p className="muted">Пока пусто. Нажмите «Обновить ленту».</p>
         ) : (
           <div className="gallery">
             {images.map((image) => (
               <article key={image.id} className="gallery-item">
-                <a href={image.imagePath} target="_blank" rel="noreferrer">
-                  <img src={image.imagePath} alt={image.prompt} loading="lazy" />
+                <a href={resolveAssetUrl(image.imagePath)} target="_blank" rel="noreferrer">
+                  <img src={resolveAssetUrl(image.imagePath)} alt={image.prompt} loading="lazy" />
                 </a>
                 <p>{image.prompt}</p>
                 <small>{shortDateTime(image.createdAt)}</small>

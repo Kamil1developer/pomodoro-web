@@ -20,7 +20,15 @@ public class MotivationDtos {
       OffsetDateTime createdAt) {}
 
   public record DailyQuoteResponse(
-      Long id, Long goalId, String quoteText, String quoteAuthor, String quoteDate) {}
+      Long id,
+      Long goalId,
+      String quoteText,
+      String quoteTextRu,
+      String quoteAuthor,
+      String quoteDate) {}
+
+  public record FeedRefreshResponse(
+      java.util.List<MotivationResponse> images, DailyQuoteResponse quote) {}
 
   public record FavoriteRequest(Boolean isFavorite) {}
 }

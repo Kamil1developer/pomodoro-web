@@ -72,8 +72,14 @@ export interface MotivationQuote {
   id: number;
   goalId: number;
   quoteText: string;
+  quoteTextRu: string;
   quoteAuthor: string;
   quoteDate: string;
+}
+
+export interface MotivationFeed {
+  images: MotivationImage[];
+  quote: MotivationQuote;
 }
 
 export interface ChatMessage {

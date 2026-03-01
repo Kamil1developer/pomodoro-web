@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { api } from '../lib/apiClient';
+import { api, resolveAssetUrl } from '../lib/apiClient';
 import { minutesToHours, shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
 import type { FocusSession, GoalProgress, ReportItem, TaskItem } from '../types/api';
@@ -403,7 +403,7 @@ export function ControlPage() {
                     </p>
                     <p className="feed-subtitle">{report.aiExplanation ?? 'Без пояснения'}</p>
                   </div>
-                  <a href={report.imagePath} target="_blank" rel="noreferrer">
+                  <a href={resolveAssetUrl(report.imagePath)} target="_blank" rel="noreferrer">
                     Фото
                   </a>
                 </li>

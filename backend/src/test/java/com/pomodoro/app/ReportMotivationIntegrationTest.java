@@ -83,8 +83,18 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                 .header("Authorization", bearer(tokens.accessToken())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.quoteText").isString())
+        .andExpect(jsonPath("$.quoteTextRu").isString())
         .andExpect(jsonPath("$.quoteAuthor").isString())
         .andExpect(jsonPath("$.quoteDate").isString());
+
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/motivation/refresh-feed", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.images").isArray())
+        .andExpect(jsonPath("$.quote.quoteText").isString())
+        .andExpect(jsonPath("$.quote.quoteTextRu").isString());
 
     mockMvc
         .perform(
