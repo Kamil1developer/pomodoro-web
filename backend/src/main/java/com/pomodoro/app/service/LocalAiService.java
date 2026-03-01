@@ -6,9 +6,12 @@ import com.pomodoro.app.config.AppProperties;
 import com.pomodoro.app.dto.AiDtos;
 import com.pomodoro.app.enums.AiVerdict;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -17,10 +20,13 @@ import org.springframework.web.reactive.function.client.WebClient;
 @Service
 @ConditionalOnProperty(name = "app.ai.mode", havingValue = "local")
 public class LocalAiService implements AiService {
+  private static final Logger log = LoggerFactory.getLogger(LocalAiService.class);
+
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final AppProperties appProperties;
   private final WebClient ollamaWebClient;
   private final WebClient localImageWebClient;
+  private final WebClient webImageWebClient;
   private final StorageService storageService;
 
   public LocalAiService(
@@ -31,6 +37,7 @@ public class LocalAiService implements AiService {
     this.ollamaWebClient = webClientBuilder.baseUrl(appProperties.ai().ollamaApiUrl()).build();
     this.localImageWebClient =
         webClientBuilder.baseUrl(appProperties.ai().localImageApiUrl()).build();
+    this.webImageWebClient = webClientBuilder.baseUrl(appProperties.ai().webImageApiUrl()).build();
     this.storageService = storageService;
   }
 
@@ -103,7 +110,7 @@ public class LocalAiService implements AiService {
                       "model", appProperties.ai().ollamaModel(), "prompt", prompt, "stream", false))
               .retrieve()
               .bodyToMono(String.class)
-              .block();
+              .block(Duration.ofSeconds(Math.max(4, appProperties.ai().imageTimeoutSeconds())));
 
       JsonNode root = objectMapper.readTree(response);
       String text = root.path("response").asText();
@@ -128,6 +135,14 @@ public class LocalAiService implements AiService {
             + (styleOptions == null || styleOptions.isBlank() ? "cinematic" : styleOptions)
             + ". high quality, inspirational atmosphere.";
 
+    if (appProperties.ai().useWebImageFeed()) {
+      try {
+        return generateWebImage(goalContext, prompt);
+      } catch (Exception e) {
+        log.warn("Web image feed failed, fallback to local image service: {}", e.getMessage());
+      }
+    }
+
     try {
       String response =
           localImageWebClient
@@ -143,18 +158,28 @@ public class LocalAiService implements AiService {
                       "guidance_scale",
                       0.0,
                       "width",
-                      256,
+                      384,
                       "height",
-                      256))
+                      384))
               .retrieve()
               .bodyToMono(String.class)
-              .block();
+              .block(Duration.ofSeconds(Math.max(4, appProperties.ai().imageTimeoutSeconds())));
 
       JsonNode root = objectMapper.readTree(response);
       String b64 = root.path("b64_image").asText();
+      if (b64 == null || b64.isBlank()) {
+        throw new IllegalStateException("Local image service returned empty image");
+      }
       String path = storageService.storeMotivationBase64(b64, "png");
       return new AiDtos.ImageResult(path, prompt);
     } catch (Exception e) {
+      if (!appProperties.ai().useWebImageFeed()) {
+        try {
+          return generateWebImage(goalContext, prompt);
+        } catch (Exception fallbackErr) {
+          log.warn("Web image fallback failed: {}", fallbackErr.getMessage());
+        }
+      }
       String svg =
           "<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><rect width='100%' height='100%' fill='#f8f7f2'/>"
               + "<text x='70' y='210' font-size='58' fill='#1d4f47'>Local Image AI Unavailable</text>"
@@ -168,6 +193,29 @@ public class LocalAiService implements AiService {
           storageService.storeBytes(svg.getBytes(StandardCharsets.UTF_8), "motivation", "svg");
       return new AiDtos.ImageResult(fallbackPath, prompt);
     }
+  }
+
+  private AiDtos.ImageResult generateWebImage(AiDtos.GoalContext goalContext, String prompt) {
+    String seed = sanitizeSeed(goalContext.title()) + "-" + System.currentTimeMillis();
+    byte[] bytes =
+        webImageWebClient
+            .get()
+            .uri("/seed/{seed}/1024/1024", seed)
+            .retrieve()
+            .bodyToMono(byte[].class)
+            .block(Duration.ofSeconds(Math.max(3, appProperties.ai().imageTimeoutSeconds())));
+    if (bytes == null || bytes.length == 0) {
+      throw new IllegalStateException("Web image source returned empty body");
+    }
+    String path = storageService.storeBytes(bytes, "motivation", "jpg");
+    return new AiDtos.ImageResult(path, prompt);
+  }
+
+  private String sanitizeSeed(String text) {
+    if (text == null || text.isBlank()) {
+      return "goal";
+    }
+    return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
   }
 
   private String escape(String text) {

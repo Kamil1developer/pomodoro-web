@@ -15,5 +15,8 @@ public record AppProperties(Jwt jwt, Ai ai, String uploadsDir) {
       String ollamaApiUrl,
       String ollamaModel,
       String localImageApiUrl,
-      int localImageSteps) {}
+      int localImageSteps,
+      boolean useWebImageFeed,
+      String webImageApiUrl,
+      int imageTimeoutSeconds) {}
 }

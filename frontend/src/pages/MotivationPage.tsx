@@ -9,16 +9,19 @@ export function MotivationPage() {
   const [images, setImages] = useState<MotivationImage[]>([]);
   const [quote, setQuote] = useState<MotivationQuote | null>(null);
   const [showRussianQuote, setShowRussianQuote] = useState(true);
-  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function refreshFeed() {
+  async function refreshFeed(background = false) {
     if (!selectedGoal) {
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    setRefreshing(true);
+    if (!background) {
+      setError(null);
+    }
     try {
       const feed = await api.refreshMotivationFeed(selectedGoal.id);
       setImages(feed.images);
@@ -26,7 +29,7 @@ export function MotivationPage() {
     } catch (err) {
       setError((err as Error).message);
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   }
 
@@ -34,20 +37,37 @@ export function MotivationPage() {
     if (!selectedGoal) {
       setImages([]);
       setQuote(null);
+      setInitialLoading(false);
+      setRefreshing(false);
       return;
     }
 
     const run = async () => {
-      setLoading(true);
+      setInitialLoading(true);
       setError(null);
       try {
-        const feed = await api.refreshMotivationFeed(selectedGoal.id);
-        setImages(feed.images);
-        setQuote(feed.quote);
+        const [imagesData, quoteData] = await Promise.all([
+          api.getMotivation(selectedGoal.id),
+          api.getMotivationQuote(selectedGoal.id)
+        ]);
+        setImages(imagesData);
+        setQuote(quoteData);
       } catch (err) {
         setError((err as Error).message);
       } finally {
-        setLoading(false);
+        setInitialLoading(false);
+        void (async () => {
+          try {
+            setRefreshing(true);
+            const feed = await api.refreshMotivationFeed(selectedGoal.id);
+            setImages(feed.images);
+            setQuote(feed.quote);
+          } catch (err) {
+            setError((err as Error).message);
+          } finally {
+            setRefreshing(false);
+          }
+        })();
       }
     };
 
@@ -94,8 +114,8 @@ export function MotivationPage() {
           </blockquote>
         ) : null}
         <div className="inline-actions">
-          <button className="btn" onClick={() => void refreshFeed()} disabled={loading}>
-            {loading ? 'Обновление...' : 'Обновить ленту'}
+          <button className="btn" onClick={() => void refreshFeed()} disabled={refreshing}>
+            {refreshing ? 'Обновление...' : 'Обновить ленту'}
           </button>
           {quote ? (
             <button className="btn btn-ghost" onClick={() => setShowRussianQuote((prev) => !prev)}>
@@ -113,7 +133,9 @@ export function MotivationPage() {
           <strong>{images.length}</strong>
         </div>
         {images.length === 0 ? (
-          <p className="muted">Пока пусто. Нажмите «Обновить ленту».</p>
+          <p className="muted">
+            {initialLoading ? 'Загрузка ленты...' : 'Пока пусто. Нажмите «Обновить ленту».'}
+          </p>
         ) : (
           <div className="gallery">
             {images.map((image) => (

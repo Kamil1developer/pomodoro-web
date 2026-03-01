@@ -54,7 +54,8 @@ docker compose up --build
 
 - `AI_MODE=local`:
   - чат идёт через локальный Ollama (`OLLAMA_MODEL`),
-  - мотивационные картинки генерируются локально через `local-image-service` (Diffusers),
+  - по умолчанию мотивационные картинки берутся из быстрого web-источника (`https://picsum.photos`) и сохраняются в `uploads/`,
+  - если нужен именно локальный Diffusers, выставьте `USE_WEB_IMAGE_FEED=false` (тогда используется `local-image-service`),
   - запускать с профилем Compose и режимом `local`:
 ```bash
 AI_MODE=local docker compose --profile local-ai up --build
@@ -67,6 +68,7 @@ docker compose exec ollama ollama pull llama3.2:1b
 ```
   - по умолчанию для `local-image-service` используется лёгкая модель `hf-internal-testing/tiny-stable-diffusion-pipe` (стабильнее для ноутбуков по памяти).
   - если у вас больше RAM и нужна картинка получше, можно в `.env` задать `LOCAL_IMAGE_MODEL_ID=segmind/tiny-sd`.
+  - чтобы лента не зависала, добавлен таймаут `AI_IMAGE_TIMEOUT_SECONDS` (по умолчанию 8 сек).
 
 ## Основные API эндпоинты
 

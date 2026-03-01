@@ -48,6 +48,9 @@ services:
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
       LOCAL_IMAGE_API_URL: ${LOCAL_IMAGE_API_URL:-http://local-image:7860}
       LOCAL_IMAGE_STEPS: ${LOCAL_IMAGE_STEPS:-6}
+      USE_WEB_IMAGE_FEED: ${USE_WEB_IMAGE_FEED:-true}
+      WEB_IMAGE_API_URL: ${WEB_IMAGE_API_URL:-https://picsum.photos}
+      AI_IMAGE_TIMEOUT_SECONDS: ${AI_IMAGE_TIMEOUT_SECONDS:-8}
       UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
     ports:
       - "${BACKEND_PORT:-8080}:8080"
