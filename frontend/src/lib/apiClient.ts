@@ -1,0 +1,257 @@
+import {
+  type ChatHistory,
+  type FocusSession,
+  type Goal,
+  type GoalProgress,
+  type GoalStats,
+  type MotivationImage,
+  type ReportItem,
+  type TaskItem,
+  type TokenResponse
+} from '../types/api';
+import { clearTokens, getTokens, setTokens } from './authStorage';
+
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, '') ?? 'http://localhost:8080/api';
+
+export class HttpError extends Error {
+  status: number;
+  code?: string;
+  details?: string[];
+
+  constructor(status: number, message: string, code?: string, details?: string[]) {
+    super(message);
+    this.name = 'HttpError';
+    this.status = status;
+    this.code = code;
+    this.details = details;
+  }
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshTokens(): Promise<boolean> {
+  const current = getTokens();
+  if (!current?.refreshToken) {
+    return false;
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({ refreshToken: current.refreshToken })
+  })
+    .then(async (res) => {
+      if (!res.ok) {
+        clearTokens();
+        return false;
+      }
+      const data = (await res.json()) as TokenResponse;
+      setTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      return true;
+    })
+    .finally(() => {
+      refreshPromise = null;
+    });
+
+  return refreshPromise;
+}
+
+async function parseError(response: Response): Promise<HttpError> {
+  try {
+    const body = (await response.json()) as {
+      code?: string;
+      message?: string;
+      details?: string[];
+    };
+    return new HttpError(
+      response.status,
+      body.message ?? `Request failed with status ${response.status}`,
+      body.code,
+      body.details
+    );
+  } catch {
+    return new HttpError(response.status, `Request failed with status ${response.status}`);
+  }
+}
+
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  withAuth = true,
+  retry = true
+): Promise<T> {
+  const headers = new Headers(options.headers ?? {});
+  const tokens = getTokens();
+
+  if (withAuth && tokens?.accessToken) {
+    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+  }
+
+  const isFormData = options.body instanceof FormData;
+  if (!isFormData && options.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers
+  });
+
+  if (response.status === 401 && withAuth && retry) {
+    const refreshed = await refreshTokens();
+    if (refreshed) {
+      return request<T>(path, options, withAuth, false);
+    }
+    clearTokens();
+    throw new HttpError(401, 'Unauthorized');
+  }
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  const contentType = response.headers.get('content-type');
+  if (!contentType?.includes('application/json')) {
+    return undefined as T;
+  }
+
+  return (await response.json()) as T;
+}
+
+export const api = {
+  register(payload: { email: string; password: string }) {
+    return request<TokenResponse>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, false);
+  },
+  login(payload: { email: string; password: string }) {
+    return request<TokenResponse>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    }, false);
+  },
+  logout(refreshToken: string) {
+    return request<void>('/auth/logout', {
+      method: 'POST',
+      body: JSON.stringify({ refreshToken })
+    });
+  },
+  getGoals() {
+    return request<Goal[]>('/goals');
+  },
+  getGoal(id: number) {
+    return request<Goal>(`/goals/${id}`);
+  },
+  createGoal(payload: { title: string; description?: string; targetHours?: number; deadline?: string }) {
+    return request<Goal>('/goals', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateGoal(
+    id: number,
+    payload: { title: string; description?: string; targetHours?: number; deadline?: string }
+  ) {
+    return request<Goal>(`/goals/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteGoal(id: number) {
+    return request<void>(`/goals/${id}`, {
+      method: 'DELETE'
+    });
+  },
+  getTasks(goalId: number) {
+    return request<TaskItem[]>(`/goals/${goalId}/tasks`);
+  },
+  createTask(goalId: number, payload: { title: string }) {
+    return request<TaskItem>(`/goals/${goalId}/tasks`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateTask(goalId: number, taskId: number, payload: { title: string; isDone?: boolean }) {
+    return request<TaskItem>(`/goals/${goalId}/tasks/${taskId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteTask(goalId: number, taskId: number) {
+    return request<void>(`/goals/${goalId}/tasks/${taskId}`, {
+      method: 'DELETE'
+    });
+  },
+  getProgress(goalId: number) {
+    return request<GoalProgress>(`/goals/${goalId}/progress`);
+  },
+  getStats(goalId: number) {
+    return request<GoalStats>(`/goals/${goalId}/stats`);
+  },
+  startFocus(goalId: number) {
+    return request<FocusSession>(`/goals/${goalId}/focus/start`, {
+      method: 'POST'
+    });
+  },
+  stopFocus(goalId: number) {
+    return request<FocusSession>(`/goals/${goalId}/focus/stop`, {
+      method: 'POST'
+    });
+  },
+  getFocusSessions(goalId: number) {
+    return request<FocusSession[]>(`/goals/${goalId}/focus`);
+  },
+  uploadReport(goalId: number, file: File, comment: string) {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('comment', comment);
+    return request<ReportItem>(`/goals/${goalId}/reports`, {
+      method: 'POST',
+      body: form
+    });
+  },
+  getReports(goalId: number) {
+    return request<ReportItem[]>(`/goals/${goalId}/reports`);
+  },
+  generateMotivation(goalId: number, styleOptions: string) {
+    return request<MotivationImage>(`/goals/${goalId}/motivation/generate`, {
+      method: 'POST',
+      body: JSON.stringify({ styleOptions })
+    });
+  },
+  getMotivation(goalId: number) {
+    return request<MotivationImage[]>(`/goals/${goalId}/motivation`);
+  },
+  favoriteMotivation(imageId: number, isFavorite: boolean) {
+    return request<MotivationImage>(`/motivation/${imageId}/favorite`, {
+      method: 'PATCH',
+      body: JSON.stringify({ isFavorite })
+    });
+  },
+  deleteMotivation(imageId: number) {
+    return request<void>(`/motivation/${imageId}`, {
+      method: 'DELETE'
+    });
+  },
+  sendChat(goalId: number, content: string) {
+    return request<ChatHistory>(`/goals/${goalId}/chat/send`, {
+      method: 'POST',
+      body: JSON.stringify({ content })
+    });
+  },
+  getChatHistory(goalId: number) {
+    return request<ChatHistory>(`/goals/${goalId}/chat/history`);
+  }
+};
