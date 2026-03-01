@@ -8,6 +8,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface TaskItemRepository extends JpaRepository<TaskItem, Long> {
   List<TaskItem> findByGoalIdOrderByCreatedAtDesc(Long goalId);
 
+  List<TaskItem> findByGoalUserIdOrderByGoalIdAscCreatedAtAsc(Long userId);
+
   Optional<TaskItem> findByIdAndGoalId(Long id, Long goalId);
 
   long countByGoalId(Long goalId);

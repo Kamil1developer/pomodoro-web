@@ -2,8 +2,8 @@
 
 Полноценный MVP веб-приложения из 2 модулей:
 - `Контроль цели`: цели, задачи, фокус-сессии, фото-отчёты с AI-вердиктом, прогресс, дневной scheduler.
-- `Мотивация`: генерация AI-изображений, галерея, избранное, удаление.
-- `AI чат`: диалог по выбранной цели с хранением истории в БД.
+- `Мотивация`: генерация AI-изображений (ручная + авто каждые 6 часов), галерея, избранное, ежедневные цитаты.
+- `AI чат`: диалог по выбранной цели с хранением истории в БД и расширенным контекстом пользователя (профиль, все цели и задачи).
 
 Стек:
 - Backend: Java 21, Spring Boot 3, Spring Security (JWT), Validation, JPA, Scheduler, OpenAPI.
@@ -77,13 +77,13 @@ docker compose exec ollama ollama pull llama3.2:1b
 - Tasks: `GET/POST /api/goals/{id}/tasks`, `PUT/DELETE /api/goals/{goalId}/tasks/{taskId}`
 - Focus: `POST /api/goals/{id}/focus/start`, `POST /api/goals/{id}/focus/stop`, `GET /api/goals/{id}/focus`
 - Reports: `POST /api/goals/{id}/reports` (multipart `file + comment`), `GET /api/goals/{id}/reports`
-- Motivation: `POST /api/goals/{id}/motivation/generate`, `GET /api/goals/{id}/motivation`, `PATCH /api/motivation/{imgId}/favorite`, `DELETE /api/motivation/{imgId}`
+- Motivation: `POST /api/goals/{id}/motivation/generate`, `GET /api/goals/{id}/motivation`, `GET /api/goals/{id}/motivation/quote`, `PATCH /api/motivation/{imgId}/favorite`, `DELETE /api/motivation/{imgId}`
 - Chat: `POST /api/goals/{id}/chat/send`, `GET /api/goals/{id}/chat/history`
 - Stats: `GET /api/goals/{id}/stats`
 
 ## Схема БД
 
-Явно задана миграцией Flyway: `backend/src/main/resources/db/migration/V1__init.sql`.
+Явно задана миграциями Flyway: `V1__init.sql` + `V2__chat_context_theme_and_motivation_feed.sql`.
 
 Базовые таблицы:
 - `users`
@@ -96,6 +96,12 @@ docker compose exec ollama ollama pull llama3.2:1b
 - `chat_messages`
 - `refresh_tokens`
 - `daily_summaries`
+- `motivation_quotes`
+
+Ключевые дополнения V2:
+- `users.full_name` — имя пользователя для контекста AI-чата.
+- `goals.theme_color` — цвет цели (используется для фона UI при переключении целей).
+- `motivation_images.generated_by`, `motivation_images.favorited_at` — источник картинки и логика пина избранного на 24 часа.
 
 ## Scheduler
 
@@ -103,6 +109,10 @@ docker compose exec ollama ollama pull llama3.2:1b
 - переводит `PENDING` отчёты прошлых дней в `OVERDUE`,
 - пересчитывает `streak`,
 - формирует `daily_summaries`.
+
+Дополнительные cron-задачи:
+- каждые 6 часов: авто-генерация мотивационных изображений для всех целей.
+- ежедневно в `00:10`: генерация/обновление ежедневной цитаты для каждой цели.
 
 ## JWT и безопасность
 
@@ -140,16 +150,18 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm insta
 ## Что можно сделать сразу после `docker compose up`
 
 1. Зарегистрироваться / войти.
-2. Создать цель и задачи.
+2. Создать цель (включая цвет) и задачи.
 3. Запустить/остановить фокус-сессию.
 4. Загрузить фото-отчёт и получить AI verdict (`mock` или `openai`).
-5. Сгенерировать мотивационное изображение.
-6. Отправить сообщение в чат и получить ответ.
+5. Получать авто-картинки (каждые 6 часов) и добавлять в избранное (пин в ленте 24 часа).
+6. Видеть ежедневную цитату с автором.
+7. Отправить сообщение в чат и получить ответ с учетом всех целей/задач пользователя.
 
 ## Принятые решения и допущения
 
 - Для прозрачности схемы включён Flyway, `ddl-auto=validate`.
 - Статистика в экране `Статистика` строится из `daily_summaries` (после запуска scheduler).
 - Изображения доступны по URL `/uploads/...` для удобного рендера в frontend.
+- Для регистрации frontend запрашивает имя (`fullName`), но backend также умеет подставить имя из email, если поле не передано.
 - В `mock` режиме мотивационные изображения генерируются как SVG-заглушки с контекстом цели.
 - В `local` режиме анализ фото работает по эвристике комментария (локальная vision-модель не подключалась).

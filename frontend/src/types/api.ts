@@ -15,6 +15,7 @@ export interface Goal {
   description: string | null;
   targetHours: number | null;
   deadline: string | null;
+  themeColor: string;
   currentStreak: number;
   createdAt: string;
 }
@@ -60,7 +61,19 @@ export interface MotivationImage {
   imagePath: string;
   prompt: string;
   isFavorite: boolean;
+  generatedBy: 'MANUAL' | 'AUTO';
+  favoritedAt: string | null;
+  pinnedUntil: string | null;
+  isPinned: boolean;
   createdAt: string;
+}
+
+export interface MotivationQuote {
+  id: number;
+  goalId: number;
+  quoteText: string;
+  quoteAuthor: string;
+  quoteDate: string;
 }
 
 export interface ChatMessage {

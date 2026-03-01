@@ -29,6 +29,11 @@ public class MotivationController {
     return motivationService.list(AuthUtil.currentUserId(), goalId);
   }
 
+  @GetMapping("/goals/{goalId}/motivation/quote")
+  public MotivationDtos.DailyQuoteResponse dailyQuote(@PathVariable Long goalId) {
+    return motivationService.getDailyQuote(AuthUtil.currentUserId(), goalId);
+  }
+
   @PatchMapping("/motivation/{imgId}/favorite")
   public MotivationDtos.MotivationResponse favorite(
       @PathVariable Long imgId, @RequestBody @Valid MotivationDtos.FavoriteRequest request) {

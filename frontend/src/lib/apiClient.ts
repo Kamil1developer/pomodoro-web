@@ -5,6 +5,7 @@ import {
   type GoalProgress,
   type GoalStats,
   type MotivationImage,
+  type MotivationQuote,
   type ReportItem,
   type TaskItem,
   type TokenResponse
@@ -130,7 +131,7 @@ async function request<T>(
 }
 
 export const api = {
-  register(payload: { email: string; password: string }) {
+  register(payload: { email: string; password: string; fullName?: string }) {
     return request<TokenResponse>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -154,7 +155,13 @@ export const api = {
   getGoal(id: number) {
     return request<Goal>(`/goals/${id}`);
   },
-  createGoal(payload: { title: string; description?: string; targetHours?: number; deadline?: string }) {
+  createGoal(payload: {
+    title: string;
+    description?: string;
+    targetHours?: number;
+    deadline?: string;
+    themeColor?: string;
+  }) {
     return request<Goal>('/goals', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -162,7 +169,13 @@ export const api = {
   },
   updateGoal(
     id: number,
-    payload: { title: string; description?: string; targetHours?: number; deadline?: string }
+    payload: {
+      title: string;
+      description?: string;
+      targetHours?: number;
+      deadline?: string;
+      themeColor?: string;
+    }
   ) {
     return request<Goal>(`/goals/${id}`, {
       method: 'PUT',
@@ -233,6 +246,9 @@ export const api = {
   },
   getMotivation(goalId: number) {
     return request<MotivationImage[]>(`/goals/${goalId}/motivation`);
+  },
+  getMotivationQuote(goalId: number) {
+    return request<MotivationQuote>(`/goals/${goalId}/motivation/quote`);
   },
   favoriteMotivation(imageId: number, isFavorite: boolean) {
     return request<MotivationImage>(`/motivation/${imageId}/favorite`, {

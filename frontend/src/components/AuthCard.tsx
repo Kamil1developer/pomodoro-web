@@ -6,8 +6,9 @@ interface AuthCardProps {
   switchLabel: string;
   switchTo: string;
   switchText: string;
-  onSubmit: (payload: { email: string; password: string }) => Promise<void>;
+  onSubmit: (payload: { email: string; password: string; fullName?: string }) => Promise<void>;
   submitLabel: string;
+  includeFullName?: boolean;
 }
 
 export function AuthCard({
@@ -17,7 +18,8 @@ export function AuthCard({
   switchTo,
   switchText,
   onSubmit,
-  submitLabel
+  submitLabel,
+  includeFullName = false
 }: AuthCardProps) {
   return (
     <div className="auth-layout">
@@ -32,9 +34,17 @@ export function AuthCard({
             const formData = new FormData(event.currentTarget);
             const email = String(formData.get('email') ?? '').trim();
             const password = String(formData.get('password') ?? '');
-            await onSubmit({ email, password });
+            const fullName = String(formData.get('fullName') ?? '').trim() || undefined;
+            await onSubmit({ email, password, fullName });
           }}
         >
+          {includeFullName ? (
+            <label>
+              <span>Имя</span>
+              <input name="fullName" required placeholder="Как к вам обращаться" maxLength={255} />
+            </label>
+          ) : null}
+
           <label>
             <span>Email</span>
             <input name="email" type="email" required placeholder="you@example.com" />

@@ -5,6 +5,7 @@ import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.Report;
 import com.pomodoro.app.enums.ReportStatus;
 import com.pomodoro.app.repository.*;
+import com.pomodoro.app.service.MotivationService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import lombok.extern.slf4j.Slf4j;
@@ -19,18 +20,21 @@ public class DailyScheduler {
   private final TaskItemRepository taskItemRepository;
   private final FocusSessionRepository focusSessionRepository;
   private final DailySummaryRepository dailySummaryRepository;
+  private final MotivationService motivationService;
 
   public DailyScheduler(
       ReportRepository reportRepository,
       GoalRepository goalRepository,
       TaskItemRepository taskItemRepository,
       FocusSessionRepository focusSessionRepository,
-      DailySummaryRepository dailySummaryRepository) {
+      DailySummaryRepository dailySummaryRepository,
+      MotivationService motivationService) {
     this.reportRepository = reportRepository;
     this.goalRepository = goalRepository;
     this.taskItemRepository = taskItemRepository;
     this.focusSessionRepository = focusSessionRepository;
     this.dailySummaryRepository = dailySummaryRepository;
+    this.motivationService = motivationService;
   }
 
   @Scheduled(cron = "0 5 0 * * *")
@@ -77,5 +81,25 @@ public class DailyScheduler {
     }
 
     log.info("Daily scheduler executed for {}", today);
+  }
+
+  @Scheduled(cron = "0 0 */6 * * *")
+  public void generateAutoMotivationImages() {
+    int generated = 0;
+    for (Goal goal : goalRepository.findAll()) {
+      try {
+        motivationService.generateAutoForGoal(goal);
+        generated++;
+      } catch (Exception e) {
+        log.warn("Auto motivation generation failed for goal {}: {}", goal.getId(), e.getMessage());
+      }
+    }
+    log.info("Auto motivation scheduler executed: generated {} images", generated);
+  }
+
+  @Scheduled(cron = "0 10 0 * * *")
+  public void refreshDailyQuotes() {
+    motivationService.ensureDailyQuotesForAllGoals(goalRepository.findAll(), LocalDate.now());
+    log.info("Daily quote scheduler executed for {}", LocalDate.now());
   }
 }

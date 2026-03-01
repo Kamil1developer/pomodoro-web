@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class GoalService {
+  private static final String DEFAULT_THEME_COLOR = "#dff6e5";
+
   private final GoalRepository goalRepository;
   private final UserRepository userRepository;
   private final TaskItemRepository taskItemRepository;
@@ -65,6 +67,7 @@ public class GoalService {
             .description(request.description())
             .targetHours(request.targetHours())
             .deadline(request.deadline())
+            .themeColor(request.themeColor() == null ? DEFAULT_THEME_COLOR : request.themeColor())
             .currentStreak(0)
             .createdAt(OffsetDateTime.now())
             .build();
@@ -78,6 +81,7 @@ public class GoalService {
     goal.setDescription(request.description());
     goal.setTargetHours(request.targetHours());
     goal.setDeadline(request.deadline());
+    goal.setThemeColor(request.themeColor() == null ? goal.getThemeColor() : request.themeColor());
     return toGoalResponse(goalRepository.save(goal));
   }
 
@@ -158,6 +162,7 @@ public class GoalService {
         g.getDescription(),
         g.getTargetHours(),
         g.getDeadline(),
+        g.getThemeColor(),
         g.getCurrentStreak(),
         g.getCreatedAt());
   }

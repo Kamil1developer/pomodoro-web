@@ -2,11 +2,12 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
-import type { MotivationImage } from '../types/api';
+import type { MotivationImage, MotivationQuote } from '../types/api';
 
 export function MotivationPage() {
   const { selectedGoal } = useAppShellContext();
   const [images, setImages] = useState<MotivationImage[]>([]);
+  const [quote, setQuote] = useState<MotivationQuote | null>(null);
   const [styleOptions, setStyleOptions] = useState('cinematic success poster');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,8 +22,12 @@ export function MotivationPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await api.getMotivation(selectedGoal.id);
+        const [data, quoteData] = await Promise.all([
+          api.getMotivation(selectedGoal.id),
+          api.getMotivationQuote(selectedGoal.id)
+        ]);
         setImages(data);
+        setQuote(quoteData);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -83,6 +88,12 @@ export function MotivationPage() {
       <section className="card">
         <h3>Генерация мотивации</h3>
         <p className="muted">Цель: {selectedGoal.title}</p>
+        {quote ? (
+          <blockquote className="quote-block">
+            <p>“{quote.quoteText}”</p>
+            <footer>— {quote.quoteAuthor}</footer>
+          </blockquote>
+        ) : null}
         <div className="inline-fields">
           <input
             value={styleOptions}
@@ -113,6 +124,10 @@ export function MotivationPage() {
                 </a>
                 <p>{image.prompt}</p>
                 <small>{shortDateTime(image.createdAt)}</small>
+                <small>
+                  {image.generatedBy === 'AUTO' ? 'Автогенерация' : 'Ручная генерация'}
+                  {image.isPinned && image.pinnedUntil ? ` · В избранном до ${shortDateTime(image.pinnedUntil)}` : ''}
+                </small>
                 <div className="inline-actions">
                   <button className="btn btn-ghost" onClick={() => void toggleFavorite(image)}>
                     {image.isFavorite ? 'Убрать из избранного' : 'В избранное'}

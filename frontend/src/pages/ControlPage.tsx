@@ -10,13 +10,15 @@ interface GoalFormState {
   description: string;
   targetHours: string;
   deadline: string;
+  themeColor: string;
 }
 
 const emptyGoalForm: GoalFormState = {
   title: '',
   description: '',
   targetHours: '',
-  deadline: ''
+  deadline: '',
+  themeColor: '#dff6e5'
 };
 
 export function ControlPage() {
@@ -64,7 +66,8 @@ export function ControlPage() {
           title: selectedGoal.title,
           description: selectedGoal.description ?? '',
           targetHours: selectedGoal.targetHours ? String(selectedGoal.targetHours) : '',
-          deadline: selectedGoal.deadline ?? ''
+          deadline: selectedGoal.deadline ?? '',
+          themeColor: selectedGoal.themeColor ?? '#dff6e5'
         });
       } catch (err) {
         setError((err as Error).message);
@@ -107,7 +110,8 @@ export function ControlPage() {
         title,
         description: String(formData.get('description') ?? '').trim() || undefined,
         targetHours: Number(formData.get('targetHours') || 0) || undefined,
-        deadline: String(formData.get('deadline') ?? '').trim() || undefined
+        deadline: String(formData.get('deadline') ?? '').trim() || undefined,
+        themeColor: String(formData.get('themeColor') ?? '').trim() || '#dff6e5'
       });
       await reloadGoals();
       setSelectedGoalId(created.id);
@@ -127,7 +131,8 @@ export function ControlPage() {
         title: goalForm.title,
         description: goalForm.description || undefined,
         targetHours: Number(goalForm.targetHours) || undefined,
-        deadline: goalForm.deadline || undefined
+        deadline: goalForm.deadline || undefined,
+        themeColor: goalForm.themeColor || '#dff6e5'
       });
       await reloadGoals();
       await refreshGoalData();
@@ -248,6 +253,10 @@ export function ControlPage() {
             <input name="targetHours" type="number" min={0} placeholder="Target hours" />
             <input name="deadline" type="date" />
           </div>
+          <label>
+            <span>Цвет цели</span>
+            <input name="themeColor" type="color" defaultValue="#dff6e5" />
+          </label>
           <button className="btn" type="submit">
             Добавить цель
           </button>
@@ -289,6 +298,14 @@ export function ControlPage() {
                   onChange={(event) => setGoalForm((prev) => ({ ...prev, deadline: event.target.value }))}
                 />
               </div>
+              <label>
+                <span>Цвет цели</span>
+                <input
+                  type="color"
+                  value={goalForm.themeColor}
+                  onChange={(event) => setGoalForm((prev) => ({ ...prev, themeColor: event.target.value }))}
+                />
+              </label>
               <div className="inline-actions">
                 <button className="btn" onClick={() => void handleUpdateGoal()}>
                   Сохранить цель

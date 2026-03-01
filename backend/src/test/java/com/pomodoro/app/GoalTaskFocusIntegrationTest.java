@@ -11,6 +11,27 @@ import org.springframework.http.MediaType;
 class GoalTaskFocusIntegrationTest extends IntegrationTestSupport {
 
   @Test
+  void createGoalShouldAcceptThemeColor() throws Exception {
+    Tokens tokens = registerUser("goal-color@test.dev", "password123");
+
+    mockMvc
+        .perform(
+            post("/api/goals")
+                .header("Authorization", bearer(tokens.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                {
+                                  "title": "Color goal",
+                                  "description": "theme",
+                                  "themeColor": "#1a8e6a"
+                                }
+                                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.themeColor").value("#1a8e6a"));
+  }
+
+  @Test
   void securedEndpointShouldReturnUnauthorizedWithoutToken() throws Exception {
     mockMvc
         .perform(get("/api/goals"))

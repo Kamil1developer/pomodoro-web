@@ -65,10 +65,12 @@ public class LocalAiService implements AiService {
   @Override
   public String chat(List<AiDtos.ChatInputMessage> messages, AiDtos.GoalContext goalContext) {
     StringBuilder conversation = new StringBuilder();
+    StringBuilder systemContext = new StringBuilder();
     int start = Math.max(messages.size() - 10, 0);
     for (int i = start; i < messages.size(); i++) {
       AiDtos.ChatInputMessage message = messages.get(i);
       if ("system".equalsIgnoreCase(message.role())) {
+        systemContext.append(message.content()).append("\n");
         continue;
       }
       conversation
@@ -84,6 +86,8 @@ public class LocalAiService implements AiService {
             + goalContext.title()
             + "\nОписание цели: "
             + (goalContext.description() == null ? "-" : goalContext.description())
+            + "\nКонтекст:\n"
+            + systemContext
             + "\nИстория диалога:\n"
             + conversation
             + "\nДай короткий и практичный ответ на русском: следующий шаг, план на 1 день и как улучшить отчет.";

@@ -40,9 +40,19 @@ public class MockAiService implements AiService {
   @Override
   public String chat(List<AiDtos.ChatInputMessage> messages, AiDtos.GoalContext goalContext) {
     String last = messages.isEmpty() ? "" : messages.get(messages.size() - 1).content();
+    String fullName =
+        messages.stream()
+            .filter(m -> "system".equalsIgnoreCase(m.role()))
+            .map(AiDtos.ChatInputMessage::content)
+            .map(this::extractFullName)
+            .filter(name -> !name.isBlank())
+            .findFirst()
+            .orElse("пользователь");
     return "План на следующий шаг для цели '"
         + goalContext.title()
-        + "': 1) 25 минут фокуса 2) закрыть 1 задачу 3) отправить отчет с конкретным результатом. Вопрос: "
+        + "' для "
+        + fullName
+        + ": 1) 25 минут фокуса 2) закрыть 1 задачу 3) отправить отчет с конкретным результатом. Вопрос: "
         + last;
   }
 
@@ -71,5 +81,16 @@ public class MockAiService implements AiService {
 
   private String escape(String text) {
     return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  }
+
+  private String extractFullName(String systemPrompt) {
+    String marker = "fullName:";
+    int index = systemPrompt.indexOf(marker);
+    if (index < 0) {
+      return "";
+    }
+    String tail = systemPrompt.substring(index + marker.length()).trim();
+    int lineBreak = tail.indexOf('\n');
+    return (lineBreak >= 0 ? tail.substring(0, lineBreak) : tail).trim();
   }
 }

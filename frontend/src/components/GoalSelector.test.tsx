@@ -15,6 +15,7 @@ describe('GoalSelector', () => {
             description: null,
             targetHours: null,
             deadline: null,
+            themeColor: '#dff6e5',
             currentStreak: 0,
             createdAt: '2026-01-01T00:00:00Z'
           },
@@ -24,6 +25,7 @@ describe('GoalSelector', () => {
             description: null,
             targetHours: null,
             deadline: null,
+            themeColor: '#d4e9ff',
             currentStreak: 0,
             createdAt: '2026-01-01T00:00:00Z'
           }

@@ -54,6 +54,7 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                 jsonPath("$.imagePath")
                     .value(org.hamcrest.Matchers.startsWith("/uploads/motivation/")))
             .andExpect(jsonPath("$.isFavorite").value(false))
+            .andExpect(jsonPath("$.generatedBy").value("MANUAL"))
             .andReturn()
             .getResponse()
             .getContentAsString();
@@ -72,7 +73,18 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                                 }
                                 """))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.isFavorite").value(true));
+        .andExpect(jsonPath("$.isFavorite").value(true))
+        .andExpect(jsonPath("$.isPinned").value(true))
+        .andExpect(jsonPath("$.pinnedUntil").isString());
+
+    mockMvc
+        .perform(
+            get("/api/goals/{goalId}/motivation/quote", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.quoteText").isString())
+        .andExpect(jsonPath("$.quoteAuthor").isString())
+        .andExpect(jsonPath("$.quoteDate").isString());
 
     mockMvc
         .perform(

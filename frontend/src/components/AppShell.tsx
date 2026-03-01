@@ -7,6 +7,7 @@ import type { AppShellContext } from '../types/app';
 import { GoalSelector } from './GoalSelector';
 
 const SELECTED_GOAL_KEY = 'pomodoro_selected_goal_id';
+const DEFAULT_THEME_COLOR = '#dff6e5';
 
 function getStoredGoalId(): number | null {
   const raw = localStorage.getItem(SELECTED_GOAL_KEY);
@@ -85,6 +86,16 @@ export function AppShell() {
     [goals, selectedGoalId]
   );
 
+  useEffect(() => {
+    const base = selectedGoal?.themeColor ?? DEFAULT_THEME_COLOR;
+    const soft = tintColor(base, 0.84);
+    const deep = shadeColor(base, 0.52);
+    const root = document.documentElement;
+    root.style.setProperty('--goal-color', base);
+    root.style.setProperty('--goal-color-soft', soft);
+    root.style.setProperty('--goal-color-deep', deep);
+  }, [selectedGoal]);
+
   const context: AppShellContext = {
     goals,
     selectedGoal,
@@ -148,4 +159,48 @@ export function AppShell() {
       </main>
     </div>
   );
+}
+
+function tintColor(hex: string, amount: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) {
+    return DEFAULT_THEME_COLOR;
+  }
+  return toHex({
+    r: Math.round(rgb.r + (255 - rgb.r) * amount),
+    g: Math.round(rgb.g + (255 - rgb.g) * amount),
+    b: Math.round(rgb.b + (255 - rgb.b) * amount)
+  });
+}
+
+function shadeColor(hex: string, amount: number): string {
+  const rgb = parseHex(hex);
+  if (!rgb) {
+    return '#c8d2be';
+  }
+  return toHex({
+    r: Math.round(rgb.r * amount),
+    g: Math.round(rgb.g * amount),
+    b: Math.round(rgb.b * amount)
+  });
+}
+
+function parseHex(hex: string): { r: number; g: number; b: number } | null {
+  const normalized = hex.trim();
+  const match = /^#([0-9a-f]{6})$/i.exec(normalized);
+  if (!match) {
+    return null;
+  }
+  const intVal = Number.parseInt(match[1], 16);
+  return {
+    r: (intVal >> 16) & 0xff,
+    g: (intVal >> 8) & 0xff,
+    b: intVal & 0xff
+  };
+}
+
+function toHex(rgb: { r: number; g: number; b: number }): string {
+  const clamp = (value: number) => Math.max(0, Math.min(255, value));
+  const encode = (value: number) => clamp(value).toString(16).padStart(2, '0');
+  return `#${encode(rgb.r)}${encode(rgb.g)}${encode(rgb.b)}`;
 }

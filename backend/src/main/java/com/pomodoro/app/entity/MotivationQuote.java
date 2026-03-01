@@ -1,18 +1,20 @@
 package com.pomodoro.app.entity;
 
-import com.pomodoro.app.enums.MotivationImageSource;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import lombok.*;
 
 @Entity
-@Table(name = "motivation_images")
+@Table(
+    name = "motivation_quotes",
+    uniqueConstraints = {@UniqueConstraint(columnNames = {"goal_id", "quote_date"})})
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class MotivationImage {
+public class MotivationQuote {
   @Id
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
@@ -21,20 +23,14 @@ public class MotivationImage {
   @JoinColumn(name = "goal_id")
   private Goal goal;
 
-  @Column(nullable = false)
-  private String imagePath;
-
-  @Column(nullable = false, length = 3000)
-  private String prompt;
+  @Column(nullable = false, length = 2000)
+  private String quoteText;
 
   @Column(nullable = false)
-  private Boolean isFavorite;
+  private String quoteAuthor;
 
-  @Enumerated(EnumType.STRING)
-  @Column(nullable = false, length = 32)
-  private MotivationImageSource generatedBy;
-
-  private OffsetDateTime favoritedAt;
+  @Column(nullable = false)
+  private LocalDate quoteDate;
 
   @Column(nullable = false)
   private OffsetDateTime createdAt;

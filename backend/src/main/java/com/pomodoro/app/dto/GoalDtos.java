@@ -1,6 +1,7 @@
 package com.pomodoro.app.dto;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -12,13 +13,15 @@ public class GoalDtos {
       @NotBlank @Size(max = 255) String title,
       @Size(max = 3000) String description,
       BigDecimal targetHours,
-      LocalDate deadline) {}
+      LocalDate deadline,
+      @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String themeColor) {}
 
   public record GoalUpdateRequest(
       @NotBlank @Size(max = 255) String title,
       @Size(max = 3000) String description,
       BigDecimal targetHours,
-      LocalDate deadline) {}
+      LocalDate deadline,
+      @Pattern(regexp = "^#[0-9A-Fa-f]{6}$") String themeColor) {}
 
   public record GoalResponse(
       Long id,
@@ -26,6 +29,7 @@ public class GoalDtos {
       String description,
       BigDecimal targetHours,
       LocalDate deadline,
+      String themeColor,
       Integer currentStreak,
       OffsetDateTime createdAt) {}
 

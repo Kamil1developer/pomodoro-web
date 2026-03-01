@@ -1,7 +1,12 @@
 :root {
   font-family: 'Manrope', 'Avenir Next', 'Segoe UI', sans-serif;
   color: #1d2333;
-  background: radial-gradient(circle at 10% 10%, #dff6e5 0%, #f7f4e8 40%, #f7e8d5 100%);
+  background: radial-gradient(
+    circle at 10% 10%,
+    var(--goal-color-soft, #dff6e5) 0%,
+    #f7f4e8 40%,
+    var(--goal-color, #f7e8d5) 100%
+  );
   line-height: 1.4;
   font-weight: 500;
 
@@ -13,6 +18,9 @@
   --accent: #e39b2a;
   --danger: #b63f2f;
   --ink-soft: #4a546d;
+  --goal-color: #dff6e5;
+  --goal-color-soft: #eef9f1;
+  --goal-color-deep: #b8d0bf;
 }
 
 * {
@@ -23,7 +31,12 @@ body {
   margin: 0;
   min-height: 100vh;
   color: #1d2333;
-  background: radial-gradient(circle at 10% 10%, #dff6e5 0%, #f7f4e8 40%, #f7e8d5 100%);
+  background: radial-gradient(
+    circle at 10% 10%,
+    var(--goal-color-soft, #dff6e5) 0%,
+    #f7f4e8 40%,
+    var(--goal-color, #f7e8d5) 100%
+  );
 }
 
 a {
@@ -188,7 +201,7 @@ textarea {
 }
 
 .main-nav a.active {
-  background: #d9f2e5;
+  background: color-mix(in srgb, var(--goal-color, #d9f2e5) 45%, white);
   color: #0d513d;
 }
 
@@ -387,6 +400,25 @@ textarea {
 
 .gallery-item p {
   margin: 0;
+  font-size: 0.9rem;
+}
+
+.quote-block {
+  margin: 0.6rem 0 0.9rem;
+  padding: 0.7rem 0.85rem;
+  border-left: 4px solid var(--goal-color-deep, #b8d0bf);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.quote-block p {
+  margin: 0;
+  font-style: italic;
+}
+
+.quote-block footer {
+  margin-top: 0.4rem;
+  color: var(--ink-soft);
   font-size: 0.9rem;
 }
 

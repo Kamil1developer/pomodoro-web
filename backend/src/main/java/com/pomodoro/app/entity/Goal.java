@@ -35,6 +35,9 @@ public class Goal {
   @Column(nullable = false)
   private Integer currentStreak;
 
+  @Column(nullable = false, length = 16)
+  private String themeColor;
+
   @Column(nullable = false)
   private OffsetDateTime createdAt;
 }

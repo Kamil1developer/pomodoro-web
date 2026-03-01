@@ -9,7 +9,7 @@ export function RegisterPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (payload: { email: string; password: string }) => {
+  const handleSubmit = async (payload: { email: string; password: string; fullName?: string }) => {
     setLoading(true);
     setError(null);
     try {
@@ -33,6 +33,7 @@ export function RegisterPage() {
         switchLabel="Войти"
         switchTo="/login"
         onSubmit={handleSubmit}
+        includeFullName
       />
       {error ? <p className="error-toast">{error}</p> : null}
     </>

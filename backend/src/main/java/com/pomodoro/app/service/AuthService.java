@@ -11,6 +11,7 @@ import com.pomodoro.app.repository.UserRepository;
 import com.pomodoro.app.security.JwtService;
 import io.jsonwebtoken.JwtException;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -46,6 +47,7 @@ public class AuthService {
         userRepository.save(
             User.builder()
                 .email(request.email().toLowerCase())
+                .fullName(resolveFullName(request.fullName(), request.email()))
                 .passwordHash(passwordEncoder.encode(request.password()))
                 .role(Role.USER)
                 .createdAt(OffsetDateTime.now())
@@ -109,5 +111,16 @@ public class AuthService {
 
     return new AuthDtos.TokenResponse(
         accessToken, refreshToken, "Bearer", appProperties.jwt().accessExpirationMinutes() * 60);
+  }
+
+  private String resolveFullName(String fullName, String email) {
+    if (fullName != null && !fullName.isBlank()) {
+      return fullName.trim();
+    }
+    String localPart = email.toLowerCase(Locale.ROOT).split("@")[0];
+    if (localPart.isBlank()) {
+      return "User";
+    }
+    return Character.toUpperCase(localPart.charAt(0)) + localPart.substring(1);
   }
 }
