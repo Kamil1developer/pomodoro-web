@@ -74,7 +74,7 @@ export function AppShell() {
         await api.logout(tokens.refreshToken);
       }
     } catch {
-      // Ignore network/logout errors and clear local session anyway.
+      // Игнорируем ошибки сети/logout и в любом случае очищаем локальную сессию.
     } finally {
       clearTokens();
       navigate('/login', { replace: true });

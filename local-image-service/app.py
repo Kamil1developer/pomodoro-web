@@ -64,7 +64,7 @@ class GenerateResponse(BaseModel):
 async def lifespan(_: FastAPI):
     try:
         pipeline = load_pipeline(MODEL_ID)
-        # Tiny test pipelines can have an incompatible safety checker config.
+        # У мини-моделей safety checker иногда несовместим с размером входа.
         if hasattr(pipeline, "safety_checker"):
             pipeline.safety_checker = None
         if hasattr(pipeline, "register_to_config"):
