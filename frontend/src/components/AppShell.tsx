@@ -138,8 +138,9 @@ export function AppShell() {
             Dashboard
           </NavLink>
           <NavLink to="/control">Контроль</NavLink>
+          <NavLink to="/focus">Фокус</NavLink>
           <NavLink to="/motivation">Мотивация</NavLink>
-          <NavLink to="/chat">Чат</NavLink>
+          <NavLink to="/chat">Мотиватор</NavLink>
           <NavLink to="/stats">Статистика</NavLink>
         </nav>
 

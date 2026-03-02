@@ -289,5 +289,10 @@ export const api = {
   },
   getChatHistory(goalId: number) {
     return request<ChatHistory>(`/goals/${goalId}/chat/history`);
+  },
+  clearChatHistory(goalId: number) {
+    return request<ChatHistory>(`/goals/${goalId}/chat/history`, {
+      method: 'DELETE'
+    });
   }
 };

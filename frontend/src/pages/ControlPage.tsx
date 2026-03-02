@@ -1,8 +1,7 @@
-import { type FormEvent, useEffect, useMemo, useState } from 'react';
-import { api, resolveAssetUrl } from '../lib/apiClient';
-import { minutesToHours, shortDateTime } from '../lib/format';
+import { type CSSProperties, type FormEvent, useEffect, useState } from 'react';
+import { api } from '../lib/apiClient';
 import { useAppShellContext } from '../lib/useAppShellContext';
-import type { FocusSession, GoalProgress, ReportItem, TaskItem } from '../types/api';
+import type { GoalProgress } from '../types/api';
 import { ProgressCard } from '../components/ProgressCard';
 
 interface GoalFormState {
@@ -25,27 +24,15 @@ export function ControlPage() {
   const { goals, selectedGoal, selectedGoalId, setSelectedGoalId, reloadGoals } = useAppShellContext();
   const [goalForm, setGoalForm] = useState<GoalFormState>(emptyGoalForm);
   const [createGoalThemeColor, setCreateGoalThemeColor] = useState('#dff6e5');
-  const [taskTitle, setTaskTitle] = useState('');
-  const [reportComment, setReportComment] = useState('');
-  const [reportFile, setReportFile] = useState<File | null>(null);
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
   const [progress, setProgress] = useState<GoalProgress | null>(null);
-  const [sessions, setSessions] = useState<FocusSession[]>([]);
-  const [reports, setReports] = useState<ReportItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-
-  const activeSession = useMemo(
-    () => sessions.find((session) => session.endedAt === null) ?? null,
-    [sessions]
-  );
+  const createColorStyle = { '--picker-color': createGoalThemeColor } as CSSProperties;
+  const editColorStyle = { '--picker-color': goalForm.themeColor } as CSSProperties;
 
   useEffect(() => {
     if (!selectedGoal) {
-      setTasks([]);
       setProgress(null);
-      setSessions([]);
-      setReports([]);
       return;
     }
 
@@ -53,16 +40,8 @@ export function ControlPage() {
       setLoading(true);
       setError(null);
       try {
-        const [tasksData, progressData, sessionsData, reportsData] = await Promise.all([
-          api.getTasks(selectedGoal.id),
-          api.getProgress(selectedGoal.id),
-          api.getFocusSessions(selectedGoal.id),
-          api.getReports(selectedGoal.id)
-        ]);
-        setTasks(tasksData);
+        const progressData = await api.getProgress(selectedGoal.id);
         setProgress(progressData);
-        setSessions(sessionsData);
-        setReports(reportsData);
         setGoalForm({
           title: selectedGoal.title,
           description: selectedGoal.description ?? '',
@@ -79,24 +58,6 @@ export function ControlPage() {
 
     void run();
   }, [selectedGoal]);
-
-  async function refreshGoalData() {
-    if (!selectedGoal) {
-      return;
-    }
-
-    const [tasksData, progressData, sessionsData, reportsData] = await Promise.all([
-      api.getTasks(selectedGoal.id),
-      api.getProgress(selectedGoal.id),
-      api.getFocusSessions(selectedGoal.id),
-      api.getReports(selectedGoal.id)
-    ]);
-
-    setTasks(tasksData);
-    setProgress(progressData);
-    setSessions(sessionsData);
-    setReports(reportsData);
-  }
 
   async function handleCreateGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -137,7 +98,6 @@ export function ControlPage() {
         themeColor: goalForm.themeColor || '#dff6e5'
       });
       await reloadGoals();
-      await refreshGoalData();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -153,92 +113,6 @@ export function ControlPage() {
       await reloadGoals();
       const nextId = goals.filter((goal) => goal.id !== selectedGoal.id)[0]?.id ?? null;
       setSelectedGoalId(nextId);
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function handleCreateTask(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedGoal || !taskTitle.trim()) {
-      return;
-    }
-
-    try {
-      await api.createTask(selectedGoal.id, { title: taskTitle.trim() });
-      setTaskTitle('');
-      await refreshGoalData();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function toggleTask(task: TaskItem) {
-    if (!selectedGoal) {
-      return;
-    }
-
-    try {
-      await api.updateTask(selectedGoal.id, task.id, {
-        title: task.title,
-        isDone: !task.isDone
-      });
-      await refreshGoalData();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function deleteTask(task: TaskItem) {
-    if (!selectedGoal) {
-      return;
-    }
-
-    try {
-      await api.deleteTask(selectedGoal.id, task.id);
-      await refreshGoalData();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function startFocus() {
-    if (!selectedGoal) {
-      return;
-    }
-
-    try {
-      await api.startFocus(selectedGoal.id);
-      await refreshGoalData();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function stopFocus() {
-    if (!selectedGoal) {
-      return;
-    }
-
-    try {
-      await api.stopFocus(selectedGoal.id);
-      await refreshGoalData();
-    } catch (err) {
-      setError((err as Error).message);
-    }
-  }
-
-  async function submitReport(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedGoal || !reportFile) {
-      return;
-    }
-
-    try {
-      await api.uploadReport(selectedGoal.id, reportFile, reportComment);
-      setReportFile(null);
-      setReportComment('');
-      await refreshGoalData();
     } catch (err) {
       setError((err as Error).message);
     }
@@ -262,6 +136,7 @@ export function ControlPage() {
               name="themeColor"
               type="color"
               value={createGoalThemeColor}
+              style={createColorStyle}
               onChange={(event) => setCreateGoalThemeColor(event.target.value)}
             />
           </label>
@@ -312,6 +187,7 @@ export function ControlPage() {
                   className="goal-color-input"
                   type="color"
                   value={goalForm.themeColor}
+                  style={editColorStyle}
                   onChange={(event) => setGoalForm((prev) => ({ ...prev, themeColor: event.target.value }))}
                 />
               </label>
@@ -327,98 +203,6 @@ export function ControlPage() {
           </section>
 
           {progress ? <ProgressCard progress={progress} /> : <section className="card">Загрузка прогресса...</section>}
-
-          <section className="card">
-            <div className="card-header">
-              <h3>Задачи</h3>
-              <strong>{tasks.filter((task) => task.isDone).length}/{tasks.length}</strong>
-            </div>
-            <form className="inline-fields" onSubmit={handleCreateTask}>
-              <input
-                placeholder="Новая задача"
-                value={taskTitle}
-                onChange={(event) => setTaskTitle(event.target.value)}
-                required
-              />
-              <button className="btn" type="submit">
-                Добавить
-              </button>
-            </form>
-            <ul className="feed task-feed">
-              {tasks.map((task) => (
-                <li key={task.id}>
-                  <label className="task-item">
-                    <input
-                      type="checkbox"
-                      checked={task.isDone}
-                      onChange={() => void toggleTask(task)}
-                    />
-                    <span>{task.title}</span>
-                  </label>
-                  <button className="btn btn-ghost" onClick={() => void deleteTask(task)}>
-                    Удалить
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="card">
-            <div className="card-header">
-              <h3>Фокус-сессии</h3>
-              <strong>{minutesToHours(sessions.reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0))}</strong>
-            </div>
-            <div className="inline-actions">
-              <button className="btn" onClick={() => void startFocus()} disabled={Boolean(activeSession)}>
-                Старт
-              </button>
-              <button className="btn" onClick={() => void stopFocus()} disabled={!activeSession}>
-                Стоп
-              </button>
-            </div>
-            {activeSession ? (
-              <p className="muted">Активна с {shortDateTime(activeSession.startedAt)}</p>
-            ) : (
-              <p className="muted">Нет активной сессии</p>
-            )}
-          </section>
-
-          <section className="card">
-            <h3>Отправить фото-отчет</h3>
-            <form className="stack" onSubmit={submitReport}>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
-                required
-              />
-              <textarea
-                value={reportComment}
-                onChange={(event) => setReportComment(event.target.value)}
-                placeholder="Комментарий к отчету"
-                rows={3}
-              />
-              <button className="btn" type="submit" disabled={!reportFile}>
-                Отправить на AI-проверку
-              </button>
-            </form>
-
-            <ul className="feed">
-              {reports.map((report) => (
-                <li key={report.id}>
-                  <div>
-                    <p className="feed-title">
-                      {report.status} · {report.aiVerdict ?? 'N/A'}
-                    </p>
-                    <p className="feed-subtitle">{report.aiExplanation ?? 'Без пояснения'}</p>
-                  </div>
-                  <a href={resolveAssetUrl(report.imagePath)} target="_blank" rel="noreferrer">
-                    Фото
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </section>
         </>
       )}
 

@@ -12,6 +12,7 @@ export function ChatPage() {
   const [content, setContent] = useState('');
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sending, setSending] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -81,11 +82,27 @@ export function ChatPage() {
     }
   }
 
+  async function clearConversation() {
+    if (!selectedGoal || clearing || sending) {
+      return;
+    }
+    setClearing(true);
+    setError(null);
+    try {
+      const history = await api.clearChatHistory(selectedGoal.id);
+      setMessages(history.messages);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setClearing(false);
+    }
+  }
+
   if (!selectedGoal) {
     return (
       <section className="empty-state">
         <h2>Нет активной цели</h2>
-        <p>Выберите цель для диалога с AI-помощником.</p>
+        <p>Выберите цель для диалога с Мотиватором.</p>
       </section>
     );
   }
@@ -93,7 +110,15 @@ export function ChatPage() {
   return (
     <div className="page-grid">
       <section className="card">
-        <h3>Чат-помощник</h3>
+        <div className="card-header">
+          <h3>Мотиватор</h3>
+          <button
+            className="btn btn-ghost"
+            onClick={() => void clearConversation()}
+            disabled={clearing || sending || loadingHistory}>
+            {clearing ? 'Очистка...' : 'Очистить диалог'}
+          </button>
+        </div>
         <p className="muted">Текущая цель: {selectedGoal.title}</p>
         <div className="chat-box" ref={scrollRef}>
           {messages.length === 0 && !loadingHistory ? <p className="muted">Начните диалог первым сообщением.</p> : null}
@@ -112,7 +137,7 @@ export function ChatPage() {
                 <span className="typing-dot" />
                 <span className="typing-dot" />
               </div>
-              <p>Бот думает...</p>
+              <p>Мотиватор думает...</p>
             </article>
           ) : null}
         </div>
@@ -122,8 +147,9 @@ export function ChatPage() {
             value={content}
             onChange={(event) => setContent(event.target.value)}
             placeholder="Например: почему мой отчет отклонен и что исправить?"
+            disabled={clearing}
           />
-          <button className="btn" type="submit" disabled={sending || !content.trim()}>
+          <button className="btn" type="submit" disabled={sending || clearing || !content.trim()}>
             {sending ? 'Ожидание...' : 'Отправить'}
           </button>
         </form>
