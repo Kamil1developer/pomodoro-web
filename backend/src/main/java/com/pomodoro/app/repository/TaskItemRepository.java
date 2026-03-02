@@ -1,6 +1,7 @@
 package com.pomodoro.app.repository;
 
 import com.pomodoro.app.entity.TaskItem;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -15,4 +16,10 @@ public interface TaskItemRepository extends JpaRepository<TaskItem, Long> {
   long countByGoalId(Long goalId);
 
   long countByGoalIdAndIsDoneTrue(Long goalId);
+
+  long countByGoalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThan(
+      Long goalId, OffsetDateTime startInclusive, OffsetDateTime endExclusive);
+
+  List<TaskItem> findByGoalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+      Long goalId, OffsetDateTime startInclusive, OffsetDateTime endExclusive);
 }

@@ -14,15 +14,20 @@ import org.springframework.stereotype.Service;
 @Service
 public class FocusSessionService {
   private final GoalService goalService;
+  private final DailyTaskPolicyService dailyTaskPolicyService;
   private final FocusSessionRepository focusSessionRepository;
 
   public FocusSessionService(
-      GoalService goalService, FocusSessionRepository focusSessionRepository) {
+      GoalService goalService,
+      DailyTaskPolicyService dailyTaskPolicyService,
+      FocusSessionRepository focusSessionRepository) {
     this.goalService = goalService;
+    this.dailyTaskPolicyService = dailyTaskPolicyService;
     this.focusSessionRepository = focusSessionRepository;
   }
 
   public GoalDtos.FocusSessionResponse start(Long userId, Long goalId) {
+    dailyTaskPolicyService.ensureTasksCreatedToday(userId, goalId);
     Goal goal = goalService.ownedGoal(userId, goalId);
     focusSessionRepository
         .findFirstByGoalIdAndEndedAtIsNullOrderByStartedAtDesc(goalId)

@@ -3,13 +3,22 @@ package com.pomodoro.app.service;
 import com.pomodoro.app.dto.AiDtos;
 import com.pomodoro.app.enums.AiVerdict;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 @Service
 @ConditionalOnProperty(name = "app.ai.mode", havingValue = "mock", matchIfMissing = true)
 public class MockAiService implements AiService {
+  private static final String TASK_BLOCK_START = "TODAY_TASKS_START";
+  private static final String TASK_BLOCK_END = "TODAY_TASKS_END";
+  private static final Set<String> COMPLETION_MARKERS =
+      Set.of("сделал", "выполнил", "готово", "done", "completed", "завершил", "закрыл");
+
   private final StorageService storageService;
 
   public MockAiService(StorageService storageService) {
@@ -19,22 +28,60 @@ public class MockAiService implements AiService {
   @Override
   public AiDtos.AnalyzeResult analyzeReportImage(
       byte[] imageBytes, String userComment, AiDtos.GoalContext goalContext) {
-    if (userComment != null && userComment.toLowerCase().contains("done")) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.APPROVED,
-          0.88,
-          "Комментарий указывает на завершение этапа и фото выглядит релевантным.");
-    }
-    if (userComment != null && userComment.toLowerCase().contains("later")) {
+    List<String> todayTasks = extractTodayTasks(goalContext.description());
+    if (todayTasks.isEmpty()) {
       return new AiDtos.AnalyzeResult(
           AiVerdict.NEEDS_MORE_INFO,
-          0.51,
-          "Нужно больше деталей: добавьте конкретный результат по задаче и четкое фото прогресса.");
+          0.45,
+          "На сегодня не найден список задач для проверки. Добавьте задачи дня и повторите отчет.");
     }
+
+    String normalizedComment = normalize(userComment);
+    if (normalizedComment.isBlank()) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.NEEDS_MORE_INFO,
+          0.48,
+          "Не указан комментарий к отчету. Напишите, какую задачу дня вы выполнили и какой результат получили.");
+    }
+
+    List<String> matchedTasks = matchTasks(todayTasks, normalizedComment);
+    List<String> missingTasks =
+        todayTasks.stream().filter(task -> !matchedTasks.contains(task)).toList();
+    boolean hasCompletionMarker = containsAny(normalizedComment, COMPLETION_MARKERS);
+
+    if (matchedTasks.isEmpty()) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.REJECTED,
+          0.78,
+          "В комментарии не подтверждено выполнение задач дня. Ожидались задачи: "
+              + previewTasks(todayTasks)
+              + ".");
+    }
+
+    if (!hasCompletionMarker) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.NEEDS_MORE_INFO,
+          0.58,
+          "Есть упоминание задач ("
+              + previewTasks(matchedTasks)
+              + "), но нет явного результата. Добавьте формулировку «выполнено/готово» и итог по фото.");
+    }
+
+    if (!missingTasks.isEmpty()) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.NEEDS_MORE_INFO,
+          0.66,
+          "Подтверждены не все задачи дня. Подтверждено: "
+              + previewTasks(matchedTasks)
+              + ". Не хватает подтверждения по: "
+              + previewTasks(missingTasks)
+              + ".");
+    }
+
     return new AiDtos.AnalyzeResult(
-        AiVerdict.REJECTED,
-        0.79,
-        "Недостаточно подтверждений выполнения. Добавьте фото конечного результата и уточните что завершено.");
+        AiVerdict.APPROVED,
+        0.86,
+        "Отчет подтверждает выполнение задач дня: " + previewTasks(matchedTasks) + ".");
   }
 
   @Override
@@ -92,5 +139,65 @@ public class MockAiService implements AiService {
     String tail = systemPrompt.substring(index + marker.length()).trim();
     int lineBreak = tail.indexOf('\n');
     return (lineBreak >= 0 ? tail.substring(0, lineBreak) : tail).trim();
+  }
+
+  private List<String> extractTodayTasks(String description) {
+    if (description == null || description.isBlank()) {
+      return List.of();
+    }
+    int start = description.indexOf(TASK_BLOCK_START);
+    int end = description.indexOf(TASK_BLOCK_END);
+    if (start < 0 || end <= start) {
+      return List.of();
+    }
+    String block = description.substring(start + TASK_BLOCK_START.length(), end);
+    return block.lines()
+        .map(String::trim)
+        .filter(line -> line.startsWith("- "))
+        .map(line -> line.substring(2).replaceAll("\\s*\\(статус:.*\\)$", "").trim())
+        .filter(line -> !line.isBlank())
+        .toList();
+  }
+
+  private List<String> matchTasks(List<String> tasks, String normalizedComment) {
+    List<String> matched = new ArrayList<>();
+    for (String task : tasks) {
+      List<String> keywords = extractKeywords(task);
+      if (keywords.isEmpty()) {
+        continue;
+      }
+      boolean allPresent = keywords.stream().allMatch(normalizedComment::contains);
+      boolean anyPresent = keywords.stream().anyMatch(normalizedComment::contains);
+      if (allPresent || anyPresent) {
+        matched.add(task);
+      }
+    }
+    return matched;
+  }
+
+  private List<String> extractKeywords(String source) {
+    String normalized = normalize(source);
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    return java.util.Arrays.stream(normalized.split(" "))
+        .filter(token -> token.length() >= 4)
+        .limit(3)
+        .toList();
+  }
+
+  private String normalize(String text) {
+    if (text == null) {
+      return "";
+    }
+    return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{Nd}\\s]", " ").replaceAll("\\s+", " ").trim();
+  }
+
+  private boolean containsAny(String text, Set<String> markers) {
+    return markers.stream().anyMatch(text::contains);
+  }
+
+  private String previewTasks(List<String> tasks) {
+    return tasks.stream().limit(3).collect(Collectors.joining(", "));
   }
 }

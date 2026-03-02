@@ -4,6 +4,7 @@ import com.pomodoro.app.dto.AiDtos;
 import com.pomodoro.app.dto.ReportDtos;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.Report;
+import com.pomodoro.app.entity.TaskItem;
 import com.pomodoro.app.enums.AiVerdict;
 import com.pomodoro.app.enums.ReportStatus;
 import com.pomodoro.app.repository.ReportRepository;
@@ -15,17 +16,23 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ReportService {
+  private static final String TASK_BLOCK_START = "TODAY_TASKS_START";
+  private static final String TASK_BLOCK_END = "TODAY_TASKS_END";
+
   private final GoalService goalService;
+  private final DailyTaskPolicyService dailyTaskPolicyService;
   private final ReportRepository reportRepository;
   private final StorageService storageService;
   private final AiService aiService;
 
   public ReportService(
       GoalService goalService,
+      DailyTaskPolicyService dailyTaskPolicyService,
       ReportRepository reportRepository,
       StorageService storageService,
       AiService aiService) {
     this.goalService = goalService;
+    this.dailyTaskPolicyService = dailyTaskPolicyService;
     this.reportRepository = reportRepository;
     this.storageService = storageService;
     this.aiService = aiService;
@@ -33,19 +40,26 @@ public class ReportService {
 
   public ReportDtos.ReportResponse create(
       Long userId, Long goalId, MultipartFile file, String comment) {
+    dailyTaskPolicyService.ensureTasksCreatedToday(userId, goalId);
     Goal goal = goalService.ownedGoal(userId, goalId);
+    List<TaskItem> todayTasks = dailyTaskPolicyService.todayTasksForGoal(goal);
     String path = storageService.storeReport(file);
     AiDtos.AnalyzeResult result;
     try {
       result =
           aiService.analyzeReportImage(
               file.getBytes(),
-              comment,
-              new AiDtos.GoalContext(goal.getId(), goal.getTitle(), goal.getDescription()));
+              comment == null ? "" : comment,
+              new AiDtos.GoalContext(
+                  goal.getId(),
+                  goal.getTitle(),
+                  buildAiGoalDescription(goal.getDescription(), todayTasks)));
     } catch (Exception e) {
       result =
           new AiDtos.AnalyzeResult(
-              AiVerdict.NEEDS_MORE_INFO, 0.3, "AI analysis failed, try again.");
+              AiVerdict.NEEDS_MORE_INFO,
+              0.3,
+              "Не удалось выполнить AI-проверку. Повторите попытку позже.");
     }
     ReportStatus status =
         switch (result.verdict()) {
@@ -88,5 +102,24 @@ public class ReportService {
         report.getAiVerdict(),
         report.getAiExplanation(),
         report.getCreatedAt());
+  }
+
+  private String buildAiGoalDescription(String goalDescription, List<TaskItem> todayTasks) {
+    StringBuilder builder = new StringBuilder();
+    if (goalDescription != null && !goalDescription.isBlank()) {
+      builder.append("Цель: ").append(goalDescription.trim()).append("\n");
+    } else {
+      builder.append("Цель: без описания\n");
+    }
+    builder.append(TASK_BLOCK_START).append("\n");
+    for (TaskItem task : todayTasks) {
+      builder
+          .append("- ")
+          .append(task.getTitle())
+          .append(task.getIsDone() ? " (статус: выполнено)" : " (статус: не выполнено)")
+          .append("\n");
+    }
+    builder.append(TASK_BLOCK_END);
+    return builder.toString();
   }
 }

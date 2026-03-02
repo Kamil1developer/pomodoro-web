@@ -12,6 +12,7 @@ public record AppProperties(Jwt jwt, Ai ai, String uploadsDir) {
       String textModel,
       String visionModel,
       String imageModel,
+      boolean useWebImageFeed,
       String ollamaApiUrl,
       String ollamaModel,
       String localImageApiUrl,

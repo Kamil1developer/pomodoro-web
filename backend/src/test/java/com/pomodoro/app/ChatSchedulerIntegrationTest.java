@@ -54,14 +54,43 @@ class ChatSchedulerIntegrationTest extends IntegrationTestSupport {
   }
 
   @Test
+  void clearChatHistoryShouldResetConversation() throws Exception {
+    Tokens tokens = registerUser("chat-clear@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal chat clear");
+
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/chat/send", goalId)
+                .header("Authorization", bearer(tokens.accessToken()))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                {
+                                  "content": "Первый запрос"
+                                }
+                                """))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.messages.length()").value(2));
+
+    mockMvc
+        .perform(
+            delete("/api/goals/{goalId}/chat/history", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.messages.length()").value(0));
+  }
+
+  @Test
   void schedulerShouldMarkOldPendingReportsAsOverdueAndCreateSummary() throws Exception {
     Tokens tokens = registerUser("chat2@test.dev", "password123");
     Long goalId = createGoal(tokens.accessToken(), "Goal scheduler");
+    createTask(tokens.accessToken(), goalId, "Сделать задачу дня");
 
     MockMultipartFile file =
         new MockMultipartFile("file", "proof.jpg", "image/jpeg", "fake-image-data".getBytes());
     MockMultipartFile comment =
-        new MockMultipartFile("comment", "", "text/plain", "later".getBytes());
+        new MockMultipartFile(
+            "comment", "", "text/plain", "по задаче сделать задачу дня, нужно доработать".getBytes());
 
     String reportResponse =
         mockMvc
@@ -88,5 +117,21 @@ class ChatSchedulerIntegrationTest extends IntegrationTestSupport {
     assertThat(
             dailySummaryRepository.findByGoalIdAndSummaryDate(goalId, LocalDate.now().minusDays(1)))
         .isPresent();
+  }
+
+  private void createTask(String accessToken, Long goalId, String title) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/tasks", goalId)
+                .header("Authorization", bearer(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                {
+                                  "title": "%s"
+                                }
+                                """
+                        .formatted(title)))
+        .andExpect(status().isOk());
   }
 }

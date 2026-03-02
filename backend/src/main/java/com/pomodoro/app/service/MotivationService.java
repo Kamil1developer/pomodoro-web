@@ -16,11 +16,14 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 @Service
 public class MotivationService {
+  private static final Logger log = LoggerFactory.getLogger(MotivationService.class);
   private static final int PIN_HOURS = 24;
   private static final int FEED_IMAGE_BATCH_SIZE = 3;
   private static final int FEED_QUOTE_BATCH_SIZE = 3;
@@ -212,7 +215,11 @@ public class MotivationService {
   public MotivationDtos.FeedRefreshResponse refreshFeed(Long userId, Long goalId) {
     Goal goal = goalService.ownedGoal(userId, goalId);
     for (String style : pickFeedStyles(goal)) {
-      saveImage(goal, style, MotivationImageSource.AUTO);
+      try {
+        saveImage(goal, style, MotivationImageSource.AUTO);
+      } catch (Exception e) {
+        log.warn("Не удалось обновить мотивационную картинку для цели {}: {}", goal.getId(), e.getMessage());
+      }
     }
     return new MotivationDtos.FeedRefreshResponse(
         listByGoal(goal, OffsetDateTime.now()), pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE));

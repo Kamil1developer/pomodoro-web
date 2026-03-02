@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ChatService {
@@ -47,15 +48,10 @@ public class ChatService {
     this.aiService = aiService;
   }
 
+  @Transactional
   public ChatDtos.ChatHistoryResponse send(Long userId, Long goalId, String content) {
     Goal goal = goalService.ownedGoal(userId, goalId);
-    ChatThread thread =
-        chatThreadRepository
-            .findFirstByGoalIdOrderByCreatedAtDesc(goalId)
-            .orElseGet(
-                () ->
-                    chatThreadRepository.save(
-                        ChatThread.builder().goal(goal).createdAt(OffsetDateTime.now()).build()));
+    ChatThread thread = latestOrCreateThread(goal);
 
     chatMessageRepository.save(
         ChatMessage.builder()
@@ -93,18 +89,21 @@ public class ChatService {
   }
 
   public ChatDtos.ChatHistoryResponse history(Long userId, Long goalId) {
-    goalService.ownedGoal(userId, goalId);
-    ChatThread thread =
-        chatThreadRepository
-            .findFirstByGoalIdOrderByCreatedAtDesc(goalId)
-            .orElseGet(
-                () ->
-                    chatThreadRepository.save(
-                        ChatThread.builder()
-                            .goal(goalService.ownedGoal(userId, goalId))
-                            .createdAt(OffsetDateTime.now())
-                            .build()));
+    Goal goal = goalService.ownedGoal(userId, goalId);
+    ChatThread thread = latestOrCreateThread(goal);
     return history(thread.getId());
+  }
+
+  @Transactional
+  public ChatDtos.ChatHistoryResponse clearHistory(Long userId, Long goalId) {
+    Goal goal = goalService.ownedGoal(userId, goalId);
+    List<ChatThread> threads = chatThreadRepository.findByGoalIdOrderByCreatedAtDesc(goalId);
+    for (ChatThread thread : threads) {
+      chatMessageRepository.deleteByThreadId(thread.getId());
+    }
+    chatThreadRepository.deleteAll(threads);
+    ChatThread freshThread = createThread(goal);
+    return history(freshThread.getId());
   }
 
   private ChatDtos.ChatHistoryResponse history(Long threadId) {
@@ -116,6 +115,16 @@ public class ChatService {
                         m.getId(), m.getRole(), m.getContent(), m.getCreatedAt()))
             .toList();
     return new ChatDtos.ChatHistoryResponse(threadId, messages);
+  }
+
+  private ChatThread latestOrCreateThread(Goal goal) {
+    return chatThreadRepository
+        .findFirstByGoalIdOrderByCreatedAtDesc(goal.getId())
+        .orElseGet(() -> createThread(goal));
+  }
+
+  private ChatThread createThread(Goal goal) {
+    return chatThreadRepository.save(ChatThread.builder().goal(goal).createdAt(OffsetDateTime.now()).build());
   }
 
   private String buildUserContextPrompt(Long userId, Goal activeGoal, String lastUserMessage) {
@@ -158,7 +167,10 @@ public class ChatService {
       }
     }
 
-    return "Ты AI-коуч Pomodoro Web. Отвечай только на русском, кратко и практично."
+    return "Ты «Мотиватор» в Pomodoro Web. Твоя роль — персональный советник по целям пользователя."
+        + "\nПравила: отвечай только на русском, без англицизмов, коротко и по делу."
+        + "\nНе придумывай факты и опирайся только на контекст пользователя, целей и задач."
+        + "\nФормат ответа: 1) конкретный следующий шаг 20-30 минут, 2) короткий план на сегодня из 3 пунктов, 3) мини-мотивация на 1-2 предложения."
         + "\nТекущий пользователь:"
         + "\n- id: "
         + user.getId()
@@ -180,7 +192,6 @@ public class ChatService {
         + "\nВсе цели и задачи пользователя:"
         + goalsContext
         + "\nПоследний запрос пользователя: "
-        + lastUserMessage
-        + "\nТребования к ответу: 1) следующий шаг на 25-30 минут, 2) план на день (3 пункта), 3) что улучшить в отчете.";
+        + lastUserMessage;
   }
 }

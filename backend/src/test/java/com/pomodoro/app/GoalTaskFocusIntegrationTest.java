@@ -92,6 +92,7 @@ class GoalTaskFocusIntegrationTest extends IntegrationTestSupport {
   void shouldStartAndStopFocusSession() throws Exception {
     Tokens tokens = registerUser("goal2@test.dev", "password123");
     Long goalId = createGoal(tokens.accessToken(), "Goal focus");
+    createTask(tokens.accessToken(), goalId, "Task for today");
 
     mockMvc
         .perform(
@@ -108,5 +109,34 @@ class GoalTaskFocusIntegrationTest extends IntegrationTestSupport {
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.durationMinutes").isNumber())
         .andExpect(jsonPath("$.endedAt").isString());
+  }
+
+  @Test
+  void shouldRejectFocusStartWithoutTodayTasks() throws Exception {
+    Tokens tokens = registerUser("goal3@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal focus policy");
+
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/focus/start", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Сначала добавьте хотя бы одну задачу")));
+  }
+
+  private void createTask(String accessToken, Long goalId, String title) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/tasks", goalId)
+                .header("Authorization", bearer(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                {
+                                  "title": "%s"
+                                }
+                                """
+                        .formatted(title)))
+        .andExpect(status().isOk());
   }
 }

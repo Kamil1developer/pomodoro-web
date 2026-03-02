@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 
 class ReportMotivationIntegrationTest extends IntegrationTestSupport {
@@ -13,11 +14,13 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
   void uploadReportShouldReturnAiVerdictAndStatus() throws Exception {
     Tokens tokens = registerUser("report1@test.dev", "password123");
     Long goalId = createGoal(tokens.accessToken(), "Goal report");
+    createTask(tokens.accessToken(), goalId, "Сделать тренировку");
 
     MockMultipartFile file =
         new MockMultipartFile("file", "proof.jpg", "image/jpeg", "fake-image-data".getBytes());
     MockMultipartFile comment =
-        new MockMultipartFile("comment", "", "text/plain", "done today".getBytes());
+        new MockMultipartFile(
+            "comment", "", "text/plain", "сделал тренировку, готово".getBytes());
 
     mockMvc
         .perform(
@@ -97,12 +100,28 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
         .andExpect(jsonPath("$.quotes").isArray())
         .andExpect(jsonPath("$.quotes.length()").value(3))
         .andExpect(jsonPath("$.quotes[0].quoteText").isString())
-        .andExpect(jsonPath("$.quotes[0].quoteTextRu").isString());
+            .andExpect(jsonPath("$.quotes[0].quoteTextRu").isString());
 
     mockMvc
         .perform(
             delete("/api/motivation/{id}", imageId)
                 .header("Authorization", bearer(tokens.accessToken())))
+            .andExpect(status().isOk());
+  }
+
+  private void createTask(String accessToken, Long goalId, String title) throws Exception {
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/tasks", goalId)
+                .header("Authorization", bearer(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                                {
+                                  "title": "%s"
+                                }
+                                """
+                        .formatted(title)))
         .andExpect(status().isOk());
   }
 }

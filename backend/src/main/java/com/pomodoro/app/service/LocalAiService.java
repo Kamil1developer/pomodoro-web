@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -33,6 +34,10 @@ import reactor.netty.http.client.HttpClient;
 @ConditionalOnProperty(name = "app.ai.mode", havingValue = "local")
 public class LocalAiService implements AiService {
   private static final Logger log = LoggerFactory.getLogger(LocalAiService.class);
+  private static final String TASK_BLOCK_START = "TODAY_TASKS_START";
+  private static final String TASK_BLOCK_END = "TODAY_TASKS_END";
+  private static final Set<String> COMPLETION_MARKERS =
+      Set.of("сделал", "выполнил", "готово", "done", "completed", "завершил", "закрыл");
   private static final String DEFAULT_IMAGE_QUERY = "fitness motivation training athlete gym";
   private static final List<String> SPORT_MARKERS =
       List.of(
@@ -111,29 +116,60 @@ public class LocalAiService implements AiService {
   @Override
   public AiDtos.AnalyzeResult analyzeReportImage(
       byte[] imageBytes, String userComment, AiDtos.GoalContext goalContext) {
-    String comment = userComment == null ? "" : userComment.toLowerCase(Locale.ROOT);
-
-    if (comment.contains("done")
-        || comment.contains("completed")
-        || comment.contains("сделал")
-        || comment.contains("готово")) {
+    List<String> todayTasks = extractTodayTasks(goalContext.description());
+    if (todayTasks.isEmpty()) {
       return new AiDtos.AnalyzeResult(
-          AiVerdict.APPROVED,
-          0.74,
-          "Локальный режим: по комментарию виден результат. Добавьте больше деталей для повышения точности.");
+          AiVerdict.NEEDS_MORE_INFO,
+          0.45,
+          "Локальный режим: не найден список задач дня. Добавьте задачи на сегодня и повторите проверку.");
     }
 
+    String comment = normalize(userComment);
     if (comment.isBlank()) {
       return new AiDtos.AnalyzeResult(
           AiVerdict.NEEDS_MORE_INFO,
-          0.42,
-          "Локальный режим: добавьте комментарий с конкретным выполненным шагом.");
+          0.49,
+          "Локальный режим: добавьте комментарий, где указано какая задача дня выполнена и какой итог получен.");
+    }
+
+    List<String> matchedTasks = matchTasks(todayTasks, comment);
+    List<String> missingTasks =
+        todayTasks.stream().filter(task -> !matchedTasks.contains(task)).toList();
+    boolean hasCompletionMarker = containsAny(comment, COMPLETION_MARKERS);
+
+    if (matchedTasks.isEmpty()) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.REJECTED,
+          0.73,
+          "Локальный режим: в комментарии не найдено подтверждение задач дня. Ожидались задачи: "
+              + previewTasks(todayTasks)
+              + ".");
+    }
+
+    if (!hasCompletionMarker) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.NEEDS_MORE_INFO,
+          0.61,
+          "Локальный режим: найдены задачи ("
+              + previewTasks(matchedTasks)
+              + "), но нет явного признака завершения. Добавьте «выполнил/готово» и результат.");
+    }
+
+    if (!missingTasks.isEmpty()) {
+      return new AiDtos.AnalyzeResult(
+          AiVerdict.NEEDS_MORE_INFO,
+          0.64,
+          "Локальный режим: подтверждены не все задачи дня. Подтверждено: "
+              + previewTasks(matchedTasks)
+              + ". Не подтверждено: "
+              + previewTasks(missingTasks)
+              + ".");
     }
 
     return new AiDtos.AnalyzeResult(
-        AiVerdict.REJECTED,
-        0.63,
-        "Локальный режим: недостаточно явных признаков завершения. Уточните итог и прикрепите более информативное фото.");
+        AiVerdict.APPROVED,
+        0.82,
+        "Локальный режим: отчет подтверждает выполнение задач дня: " + previewTasks(matchedTasks) + ".");
   }
 
   @Override
@@ -519,5 +555,65 @@ public class LocalAiService implements AiService {
 
   private String escape(String text) {
     return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  }
+
+  private List<String> extractTodayTasks(String description) {
+    if (description == null || description.isBlank()) {
+      return List.of();
+    }
+    int start = description.indexOf(TASK_BLOCK_START);
+    int end = description.indexOf(TASK_BLOCK_END);
+    if (start < 0 || end <= start) {
+      return List.of();
+    }
+    String block = description.substring(start + TASK_BLOCK_START.length(), end);
+    return block.lines()
+        .map(String::trim)
+        .filter(line -> line.startsWith("- "))
+        .map(line -> line.substring(2).replaceAll("\\s*\\(статус:.*\\)$", "").trim())
+        .filter(line -> !line.isBlank())
+        .toList();
+  }
+
+  private List<String> matchTasks(List<String> tasks, String normalizedComment) {
+    List<String> matched = new ArrayList<>();
+    for (String task : tasks) {
+      List<String> keywords = extractKeywords(task);
+      if (keywords.isEmpty()) {
+        continue;
+      }
+      boolean allPresent = keywords.stream().allMatch(normalizedComment::contains);
+      boolean anyPresent = keywords.stream().anyMatch(normalizedComment::contains);
+      if (allPresent || anyPresent) {
+        matched.add(task);
+      }
+    }
+    return matched;
+  }
+
+  private List<String> extractKeywords(String source) {
+    String normalized = normalize(source);
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    return java.util.Arrays.stream(normalized.split(" "))
+        .filter(token -> token.length() >= 4)
+        .limit(3)
+        .toList();
+  }
+
+  private String normalize(String text) {
+    if (text == null) {
+      return "";
+    }
+    return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{Nd}\\s]", " ").replaceAll("\\s+", " ").trim();
+  }
+
+  private boolean containsAny(String text, Set<String> markers) {
+    return markers.stream().anyMatch(text::contains);
+  }
+
+  private String previewTasks(List<String> tasks) {
+    return tasks.stream().limit(3).collect(Collectors.joining(", "));
   }
 }

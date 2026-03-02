@@ -25,4 +25,9 @@ public class ChatController {
   public ChatDtos.ChatHistoryResponse history(@PathVariable Long goalId) {
     return chatService.history(AuthUtil.currentUserId(), goalId);
   }
+
+  @DeleteMapping("/history")
+  public ChatDtos.ChatHistoryResponse clearHistory(@PathVariable Long goalId) {
+    return chatService.clearHistory(AuthUtil.currentUserId(), goalId);
+  }
 }
