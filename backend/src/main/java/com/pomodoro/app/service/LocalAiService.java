@@ -5,40 +5,107 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pomodoro.app.config.AppProperties;
 import com.pomodoro.app.dto.AiDtos;
 import com.pomodoro.app.enums.AiVerdict;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ThreadLocalRandom;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 @Service
 @ConditionalOnProperty(name = "app.ai.mode", havingValue = "local")
 public class LocalAiService implements AiService {
   private static final Logger log = LoggerFactory.getLogger(LocalAiService.class);
+  private static final String DEFAULT_IMAGE_QUERY = "fitness motivation training athlete gym";
+  private static final List<String> SPORT_MARKERS =
+      List.of(
+          "спорт",
+          "sport",
+          "gym",
+          "fitness",
+          "workout",
+          "muscle",
+          "bodybuilding",
+          "run",
+          "running",
+          "кардио",
+          "трен",
+          "бег");
+  private static final List<String> SPORT_IMAGE_TERMS =
+      List.of("fitness", "workout", "gym", "athlete", "training", "motivation");
+  private static final List<String> STUDY_MARKERS =
+      List.of(
+          "учеб",
+          "study",
+          "exam",
+          "school",
+          "university",
+          "lesson",
+          "language",
+          "курс",
+          "диплом");
+  private static final List<String> STUDY_IMAGE_TERMS =
+      List.of("study", "books", "learning", "student", "focus", "motivation");
+  private static final List<String> CODE_MARKERS =
+      List.of(
+          "java",
+          "code",
+          "coding",
+          "programming",
+          "developer",
+          "backend",
+          "frontend",
+          "software",
+          "програм",
+          "разработ");
+  private static final List<String> CODE_IMAGE_TERMS =
+      List.of("programming", "developer", "software", "coding", "computer", "career");
 
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final AppProperties appProperties;
   private final WebClient ollamaWebClient;
-  private final WebClient localImageWebClient;
   private final WebClient webImageWebClient;
   private final StorageService storageService;
+  private final Duration imageTimeout;
+  private final Duration chatTimeout;
 
   public LocalAiService(
       AppProperties appProperties,
       WebClient.Builder webClientBuilder,
       StorageService storageService) {
     this.appProperties = appProperties;
+    ExchangeStrategies imageExchangeStrategies =
+        ExchangeStrategies.builder()
+            .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(12 * 1024 * 1024))
+            .build();
     this.ollamaWebClient = webClientBuilder.baseUrl(appProperties.ai().ollamaApiUrl()).build();
-    this.localImageWebClient =
-        webClientBuilder.baseUrl(appProperties.ai().localImageApiUrl()).build();
-    this.webImageWebClient = webClientBuilder.baseUrl(appProperties.ai().webImageApiUrl()).build();
+    this.webImageWebClient =
+        webClientBuilder
+            .clone()
+            .exchangeStrategies(imageExchangeStrategies)
+            .clientConnector(new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
+            .baseUrl(appProperties.ai().webImageApiUrl())
+            .build();
     this.storageService = storageService;
+    this.imageTimeout = Duration.ofSeconds(Math.max(4, appProperties.ai().imageTimeoutSeconds()));
+    this.chatTimeout = Duration.ofSeconds(Math.max(20, appProperties.ai().chatTimeoutSeconds()));
   }
 
   @Override
@@ -73,6 +140,7 @@ public class LocalAiService implements AiService {
   public String chat(List<AiDtos.ChatInputMessage> messages, AiDtos.GoalContext goalContext) {
     StringBuilder conversation = new StringBuilder();
     StringBuilder systemContext = new StringBuilder();
+    String lastUserMessage = extractLastUserMessage(messages);
     int start = Math.max(messages.size() - 10, 0);
     for (int i = start; i < messages.size(); i++) {
       AiDtos.ChatInputMessage message = messages.get(i);
@@ -97,7 +165,8 @@ public class LocalAiService implements AiService {
             + systemContext
             + "\nИстория диалога:\n"
             + conversation
-            + "\nДай короткий и практичный ответ на русском: следующий шаг, план на 1 день и как улучшить отчет.";
+            + "\nКритично: отвечай ТОЛЬКО на русском языке, без английских слов."
+            + "\nДай короткий и практичный ответ: 1) следующий шаг, 2) план на 1 день, 3) как улучшить отчет.";
 
     try {
       String response =
@@ -107,87 +176,128 @@ public class LocalAiService implements AiService {
               .contentType(MediaType.APPLICATION_JSON)
               .bodyValue(
                   Map.of(
-                      "model", appProperties.ai().ollamaModel(), "prompt", prompt, "stream", false))
+                      "model",
+                      appProperties.ai().ollamaModel(),
+                      "prompt",
+                      prompt,
+                      "stream",
+                      false,
+                      "keep_alive",
+                      "30m",
+                      "options",
+                      Map.of("temperature", 0.15, "top_p", 0.9)))
               .retrieve()
               .bodyToMono(String.class)
-              .block(Duration.ofSeconds(Math.max(4, appProperties.ai().imageTimeoutSeconds())));
+              .block(chatTimeout);
 
       JsonNode root = objectMapper.readTree(response);
       String text = root.path("response").asText();
-      if (text == null || text.isBlank()) {
-        return "Локальная модель не вернула ответ. Попробуйте еще раз.";
-      }
-      return text.trim();
+      return normalizeRussianAnswer(text, goalContext, lastUserMessage);
     } catch (Exception e) {
-      return "Локальный чат недоступен. Убедитесь, что сервис Ollama запущен и модель загружена.";
+      log.warn("Локальный чат недоступен: {}", e.getMessage());
+      return fallbackRussianAnswer(goalContext, lastUserMessage);
     }
+  }
+
+  private String extractLastUserMessage(List<AiDtos.ChatInputMessage> messages) {
+    for (int i = messages.size() - 1; i >= 0; i--) {
+      AiDtos.ChatInputMessage m = messages.get(i);
+      if ("user".equalsIgnoreCase(m.role())) {
+        return m.content() == null ? "" : m.content().trim();
+      }
+    }
+    return "";
+  }
+
+  private String normalizeRussianAnswer(
+      String rawText, AiDtos.GoalContext goalContext, String lastUserMessage) {
+    if (rawText == null || rawText.isBlank()) {
+      return fallbackRussianAnswer(goalContext, lastUserMessage);
+    }
+    String cleaned =
+        rawText
+            .replace('\uFFFD', ' ')
+            .replaceAll("\\p{Cntrl}", " ")
+            .replaceAll("\\s{2,}", " ")
+            .trim();
+    if (cleaned.isBlank() || looksNonRussian(cleaned)) {
+      return fallbackRussianAnswer(goalContext, lastUserMessage);
+    }
+    return cleaned;
+  }
+
+  private boolean looksNonRussian(String text) {
+    int cyrillic = 0;
+    int latin = 0;
+    int letters = 0;
+    for (int i = 0; i < text.length(); i++) {
+      char ch = text.charAt(i);
+      if (!Character.isLetter(ch)) {
+        continue;
+      }
+      letters++;
+      Character.UnicodeScript script = Character.UnicodeScript.of(ch);
+      if (script == Character.UnicodeScript.CYRILLIC) {
+        cyrillic++;
+      } else if (script == Character.UnicodeScript.LATIN) {
+        latin++;
+      }
+    }
+    if (letters == 0 || cyrillic == 0) {
+      return true;
+    }
+    double latinShare = (double) latin / letters;
+    return latinShare > 0.20 || latin > cyrillic / 2;
+  }
+
+  private String fallbackRussianAnswer(
+      AiDtos.GoalContext goalContext, String lastUserMessage) {
+    String goalTitle = goalContext.title() == null ? "вашей цели" : goalContext.title();
+    String request =
+        (lastUserMessage == null || lastUserMessage.isBlank())
+            ? "сфокусироваться и продолжить движение к цели"
+            : lastUserMessage;
+    return "Следующий шаг (25-30 минут): выполните один конкретный шаг по цели «"
+        + goalTitle
+        + "» и зафиксируйте результат."
+        + "\nПлан на день:"
+        + "\n1. Утром: 1 фокус-сессия 25-30 минут по запросу «"
+        + request
+        + "»."
+        + "\n2. Днем: закрыть минимум 1 задачу, связанную с целью."
+        + "\n3. Вечером: короткая проверка прогресса и план на завтра."
+        + "\nКак улучшить отчет: добавьте конкретику (что сделали, сколько времени заняло, какой результат получили) и приложите четкое фото итога.";
   }
 
   @Override
   public AiDtos.ImageResult generateMotivationImage(
       AiDtos.GoalContext goalContext, String styleOptions) {
-    String prompt =
-        "Motivational result visualization for goal: "
-            + goalContext.title()
-            + ". Description: "
-            + (goalContext.description() == null ? "-" : goalContext.description())
-            + ". Style: "
-            + (styleOptions == null || styleOptions.isBlank() ? "cinematic" : styleOptions)
-            + ". high quality, inspirational atmosphere.";
-
-    if (appProperties.ai().useWebImageFeed()) {
-      try {
-        return generateWebImage(goalContext, prompt);
-      } catch (Exception e) {
-        log.warn("Web image feed failed, fallback to local image service: {}", e.getMessage());
-      }
-    }
-
+    List<String> imageTags = buildImageTags(goalContext, styleOptions);
+    String prompt = "Интернет-поиск по цели: " + String.join(", ", imageTags);
     try {
-      String response =
-          localImageWebClient
-              .post()
-              .uri("/generate")
-              .contentType(MediaType.APPLICATION_JSON)
-              .bodyValue(
-                  Map.of(
-                      "prompt",
-                      prompt,
-                      "num_inference_steps",
-                      appProperties.ai().localImageSteps(),
-                      "guidance_scale",
-                      0.0,
-                      "width",
-                      384,
-                      "height",
-                      384))
-              .retrieve()
-              .bodyToMono(String.class)
-              .block(Duration.ofSeconds(Math.max(4, appProperties.ai().imageTimeoutSeconds())));
-
-      JsonNode root = objectMapper.readTree(response);
-      String b64 = root.path("b64_image").asText();
-      if (b64 == null || b64.isBlank()) {
-        throw new IllegalStateException("Local image service returned empty image");
-      }
-      String path = storageService.storeMotivationBase64(b64, "png");
+      String imageUrl = searchImageUrl(imageTags);
+      byte[] imageBytes = downloadImageBytes(imageUrl);
+      String extension = detectExtension(imageUrl, imageBytes);
+      String path = storageService.storeBytes(imageBytes, "motivation", extension);
       return new AiDtos.ImageResult(path, prompt);
     } catch (Exception e) {
-      if (!appProperties.ai().useWebImageFeed()) {
-        try {
-          return generateWebImage(goalContext, prompt);
-        } catch (Exception fallbackErr) {
-          log.warn("Web image fallback failed: {}", fallbackErr.getMessage());
-        }
+      log.warn("Internet image loading failed: {}", e.getMessage());
+      try {
+        String backupUrl = buildPicsumUrl(imageTags);
+        byte[] backupBytes = downloadImageBytes(backupUrl);
+        String backupPath = storageService.storeBytes(backupBytes, "motivation", "jpg");
+        return new AiDtos.ImageResult(backupPath, prompt + " (backup feed)");
+      } catch (Exception backupError) {
+        log.warn("Backup internet image loading failed: {}", backupError.getMessage());
       }
       String svg =
           "<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><rect width='100%' height='100%' fill='#f8f7f2'/>"
-              + "<text x='70' y='210' font-size='58' fill='#1d4f47'>Local Image AI Unavailable</text>"
+              + "<text x='70' y='210' font-size='58' fill='#1d4f47'>Internet Image Unavailable</text>"
               + "<text x='70' y='300' font-size='32' fill='#374151'>"
               + escape(goalContext.title())
               + "</text>"
               + "<text x='70' y='370' font-size='26' fill='#6b7280'>"
-              + escape(styleOptions == null ? "cinematic" : styleOptions)
+              + escape(String.join(", ", imageTags))
               + "</text></svg>";
       String fallbackPath =
           storageService.storeBytes(svg.getBytes(StandardCharsets.UTF_8), "motivation", "svg");
@@ -195,27 +305,216 @@ public class LocalAiService implements AiService {
     }
   }
 
-  private AiDtos.ImageResult generateWebImage(AiDtos.GoalContext goalContext, String prompt) {
-    String seed = sanitizeSeed(goalContext.title()) + "-" + System.currentTimeMillis();
+  private String buildPicsumUrl(List<String> imageTags) {
+    String seedText = String.join("-", imageTags) + "-" + ThreadLocalRandom.current().nextInt(1000, 9999);
+    String seed = URLEncoder.encode(seedText, StandardCharsets.UTF_8);
+    return "https://picsum.photos/seed/" + seed + "/1024/1024";
+  }
+
+  private String searchImageUrl(List<String> imageTags) throws Exception {
+    List<String> queries = buildSearchQueries(imageTags);
+    for (String query : queries) {
+      Optional<String> found = searchImageUrlByQuery(query);
+      if (found.isPresent()) {
+        return found.get();
+      }
+    }
+    throw new IllegalStateException("No images matched search query");
+  }
+
+  private Optional<String> searchImageUrlByQuery(String searchQuery) throws Exception {
+    String response =
+        webImageWebClient
+            .get()
+            .uri(
+                uriBuilder ->
+                    uriBuilder
+                        .path("/w/api.php")
+                        .queryParam("action", "query")
+                        .queryParam("format", "json")
+                        .queryParam("generator", "search")
+                        .queryParam("gsrnamespace", 6)
+                        .queryParam("gsrlimit", 30)
+                        .queryParam("gsrsearch", searchQuery)
+                        .queryParam("prop", "imageinfo")
+                        .queryParam("iiprop", "url")
+                        .build())
+            .accept(MediaType.APPLICATION_JSON)
+            .retrieve()
+            .bodyToMono(String.class)
+            .block(imageTimeout);
+    if (response == null || response.isBlank()) {
+      return Optional.empty();
+    }
+    JsonNode root = objectMapper.readTree(response);
+    List<String> imageUrls = extractImageUrls(root);
+    if (imageUrls.isEmpty()) {
+      return Optional.empty();
+    }
+    return Optional.of(imageUrls.get(ThreadLocalRandom.current().nextInt(imageUrls.size())));
+  }
+
+  private List<String> buildSearchQueries(List<String> imageTags) {
+    List<String> terms =
+        imageTags.stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).limit(6).toList();
+    String first = terms.isEmpty() ? "motivation" : terms.get(0);
+    String second = terms.size() > 1 ? terms.get(1) : "success";
+    String third = terms.size() > 2 ? terms.get(2) : "focus";
+    return List.of(
+        "filetype:bitmap|drawing " + first + " " + second,
+        "filetype:bitmap|drawing " + first + " motivation",
+        "filetype:bitmap|drawing " + first,
+        first + " " + second + " " + third,
+        first + " " + second,
+        "fitness motivation",
+        "success inspiration");
+  }
+
+  private List<String> extractImageUrls(JsonNode root) {
+    JsonNode pages = root.path("query").path("pages");
+    List<String> urls = new ArrayList<>();
+    if (!pages.isObject()) {
+      return urls;
+    }
+    Iterator<JsonNode> pageIterator = pages.elements();
+    while (pageIterator.hasNext()) {
+      JsonNode page = pageIterator.next();
+      JsonNode imageInfo = page.path("imageinfo");
+      if (!imageInfo.isArray() || imageInfo.isEmpty()) {
+        continue;
+      }
+      String rawUrl = imageInfo.get(0).path("url").asText();
+      String url = URLDecoder.decode(rawUrl, StandardCharsets.UTF_8);
+      if (isSupportedImageUrl(url)) {
+        urls.add(url);
+      }
+    }
+    return urls;
+  }
+
+  private byte[] downloadImageBytes(String imageUrl) {
     byte[] bytes =
         webImageWebClient
             .get()
-            .uri("/seed/{seed}/1024/1024", seed)
+            .uri(imageUrl)
+            .header(HttpHeaders.USER_AGENT, "PomodoroWeb/1.0")
             .retrieve()
             .bodyToMono(byte[].class)
-            .block(Duration.ofSeconds(Math.max(3, appProperties.ai().imageTimeoutSeconds())));
-    if (bytes == null || bytes.length == 0) {
-      throw new IllegalStateException("Web image source returned empty body");
+            .block(imageTimeout);
+    if (!isImageBytes(bytes)) {
+      throw new IllegalStateException("Downloaded payload is not a valid image");
     }
-    String path = storageService.storeBytes(bytes, "motivation", "jpg");
-    return new AiDtos.ImageResult(path, prompt);
+    return bytes;
   }
 
-  private String sanitizeSeed(String text) {
-    if (text == null || text.isBlank()) {
-      return "goal";
+  private List<String> buildImageTags(AiDtos.GoalContext goalContext, String styleOptions) {
+    String combinedText =
+        (goalContext.title() + " " + (goalContext.description() == null ? "" : goalContext.description()))
+            .toLowerCase(Locale.ROOT);
+    Set<String> tags = new LinkedHashSet<>();
+    if (containsAny(combinedText, SPORT_MARKERS)) {
+      tags.addAll(SPORT_IMAGE_TERMS);
+    } else if (containsAny(combinedText, CODE_MARKERS)) {
+      tags.addAll(CODE_IMAGE_TERMS);
+    } else if (containsAny(combinedText, STUDY_MARKERS)) {
+      tags.addAll(STUDY_IMAGE_TERMS);
+    } else {
+      for (String term : DEFAULT_IMAGE_QUERY.split(" ")) {
+        tags.add(term);
+      }
     }
-    return text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]+", "-").replaceAll("(^-|-$)", "");
+    tags.addAll(extractEnglishTerms(goalContext.title()));
+    tags.addAll(extractEnglishTerms(goalContext.description()));
+    tags.addAll(extractEnglishTerms(styleOptions));
+    if (tags.isEmpty()) {
+      tags.addAll(List.of("motivation", "success", "focus"));
+    }
+    return tags.stream().limit(8).toList();
+  }
+
+  private List<String> extractEnglishTerms(String text) {
+    if (text == null || text.isBlank()) {
+      return List.of();
+    }
+    Set<String> terms = new LinkedHashSet<>();
+    String[] chunks = text.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9\\s]", " ").split("\\s+");
+    for (String chunk : chunks) {
+      if (chunk.length() >= 4 && !chunk.matches(".*\\d.*")) {
+        terms.add(chunk);
+      }
+      if (terms.size() >= 3) {
+        break;
+      }
+    }
+    return terms.stream().toList();
+  }
+
+  private boolean containsAny(String text, List<String> keywords) {
+    for (String keyword : keywords) {
+      if (text.contains(keyword)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private boolean isSupportedImageUrl(String url) {
+    if (url == null || url.isBlank()) {
+      return false;
+    }
+    String lower = url.toLowerCase(Locale.ROOT);
+    return lower.endsWith(".jpg")
+        || lower.endsWith(".jpeg")
+        || lower.endsWith(".png")
+        || lower.endsWith(".webp");
+  }
+
+  private String detectExtension(String imageUrl, byte[] bytes) {
+    String lower = imageUrl == null ? "" : imageUrl.toLowerCase(Locale.ROOT);
+    if (lower.endsWith(".png")) {
+      return "png";
+    }
+    if (lower.endsWith(".webp")) {
+      return "webp";
+    }
+    if (bytes != null && bytes.length >= 12) {
+      if ((bytes[0] & 0xFF) == 0x89
+          && bytes[1] == 0x50
+          && bytes[2] == 0x4E
+          && bytes[3] == 0x47) {
+        return "png";
+      }
+      if ((bytes[0] & 0xFF) == 0x52
+          && bytes[1] == 0x49
+          && bytes[2] == 0x46
+          && bytes[3] == 0x46
+          && bytes[8] == 0x57
+          && bytes[9] == 0x45
+          && bytes[10] == 0x42
+          && bytes[11] == 0x50) {
+        return "webp";
+      }
+    }
+    return "jpg";
+  }
+
+  private boolean isImageBytes(byte[] bytes) {
+    if (bytes == null || bytes.length < 16) {
+      return false;
+    }
+    boolean jpeg = (bytes[0] & 0xFF) == 0xFF && (bytes[1] & 0xFF) == 0xD8;
+    boolean png =
+        (bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47;
+    boolean webp =
+        (bytes[0] & 0xFF) == 0x52
+            && bytes[1] == 0x49
+            && bytes[2] == 0x46
+            && bytes[3] == 0x46
+            && bytes[8] == 0x57
+            && bytes[9] == 0x45
+            && bytes[10] == 0x42
+            && bytes[11] == 0x50;
+    return jpeg || png || webp;
   }
 
   private String escape(String text) {

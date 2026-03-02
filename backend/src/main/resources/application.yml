@@ -36,9 +36,9 @@ app:
     ollama-model: ${OLLAMA_MODEL:llama3.2:1b}
     local-image-api-url: ${LOCAL_IMAGE_API_URL:http://local-image:7860}
     local-image-steps: ${LOCAL_IMAGE_STEPS:4}
-    use-web-image-feed: ${USE_WEB_IMAGE_FEED:true}
-    web-image-api-url: ${WEB_IMAGE_API_URL:https://picsum.photos}
+    web-image-api-url: ${WEB_IMAGE_API_URL:https://commons.wikimedia.org}
     image-timeout-seconds: ${AI_IMAGE_TIMEOUT_SECONDS:8}
+    chat-timeout-seconds: ${AI_CHAT_TIMEOUT_SECONDS:60}
   uploads-dir: ${UPLOADS_DIR:uploads}
 
 springdoc:

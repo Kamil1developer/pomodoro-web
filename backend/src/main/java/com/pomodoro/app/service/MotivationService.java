@@ -11,6 +11,8 @@ import com.pomodoro.app.repository.MotivationImageRepository;
 import com.pomodoro.app.repository.MotivationQuoteRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.ThreadLocalRandom;
@@ -20,8 +22,74 @@ import org.springframework.stereotype.Service;
 @Service
 public class MotivationService {
   private static final int PIN_HOURS = 24;
+  private static final int FEED_IMAGE_BATCH_SIZE = 3;
+  private static final int FEED_QUOTE_BATCH_SIZE = 3;
 
-  private static final List<QuoteItem> QUOTES =
+  private static final List<String> SPORT_MARKERS =
+      List.of("спорт", "sport", "gym", "fitness", "workout", "run", "кардио", "трен");
+  private static final List<String> STUDY_MARKERS =
+      List.of("учеб", "study", "exam", "course", "university", "диплом", "language");
+  private static final List<String> CODE_MARKERS =
+      List.of("java", "programming", "code", "developer", "backend", "frontend", "разработ");
+
+  private static final List<QuoteItem> SPORT_QUOTES =
+      List.of(
+          new QuoteItem(
+              "The only bad workout is the one that didn't happen.",
+              "Плохая тренировка только та, которой не было.",
+              "Unknown"),
+          new QuoteItem(
+              "Strength does not come from what you can do. It comes from overcoming what you once thought you couldn't.",
+              "Сила приходит не от того, что ты уже можешь, а от преодоления того, что раньше казалось невозможным.",
+              "Rikki Rogers"),
+          new QuoteItem(
+              "Take care of your body. It's the only place you have to live.",
+              "Заботься о своем теле. Это единственное место, где тебе жить.",
+              "Jim Rohn"),
+          new QuoteItem(
+              "Discipline is doing what needs to be done, even if you don't want to.",
+              "Дисциплина — делать то, что нужно, даже когда не хочется.",
+              "Unknown"));
+
+  private static final List<QuoteItem> STUDY_QUOTES =
+      List.of(
+          new QuoteItem(
+              "Success is the sum of small efforts, repeated day in and day out.",
+              "Успех — это сумма маленьких усилий, повторяемых изо дня в день.",
+              "Robert Collier"),
+          new QuoteItem(
+              "An investment in knowledge always pays the best interest.",
+              "Инвестиции в знания приносят наибольшую прибыль.",
+              "Benjamin Franklin"),
+          new QuoteItem(
+              "Learning never exhausts the mind.",
+              "Обучение никогда не истощает разум.",
+              "Leonardo da Vinci"),
+          new QuoteItem(
+              "The secret of getting ahead is getting started.",
+              "Секрет продвижения вперед в том, чтобы начать.",
+              "Mark Twain"));
+
+  private static final List<QuoteItem> CODE_QUOTES =
+      List.of(
+          new QuoteItem(
+              "First, solve the problem. Then, write the code.",
+              "Сначала реши задачу. Потом пиши код.",
+              "John Johnson"),
+          new QuoteItem(
+              "Simplicity is the soul of efficiency.",
+              "Простота — душа эффективности.",
+              "Austin Freeman"),
+          new QuoteItem(
+              "Code is like humor. When you have to explain it, it's bad.",
+              "Код как юмор: если его надо объяснять, он плох.",
+              "Cory House"),
+          new QuoteItem(
+              "The future depends on what you do today.",
+              "Будущее зависит от того, что ты делаешь сегодня.",
+              "Mahatma Gandhi"));
+
+  private static final List<QuoteItem> GENERAL_QUOTES =
       List.of(
           new QuoteItem(
               "Discipline is choosing between what you want now and what you want most.",
@@ -64,14 +132,26 @@ public class MotivationService {
               "Хорошо сделано лучше, чем хорошо сказано.",
               "Benjamin Franklin"));
 
-  private static final List<String> FEED_STYLES =
+  private static final List<String> SPORT_TERMS =
       List.of(
-          "cinematic success poster",
-          "clean productivity workspace",
-          "athletic discipline mood",
-          "calm morning focus aesthetic",
-          "bold achievement collage",
-          "minimalist high-contrast motivation");
+          "sport gym workout fitness athlete training motivation",
+          "running training discipline healthy lifestyle",
+          "sport motivation progress strength body transformation");
+  private static final List<String> STUDY_TERMS =
+      List.of(
+          "study learning student books focus motivation",
+          "exam preparation concentration productivity education",
+          "university success deep work discipline");
+  private static final List<String> CODE_TERMS =
+      List.of(
+          "coding programmer developer office laptop productivity",
+          "software engineering backend frontend career growth",
+          "java programming deep focus clean code");
+  private static final List<String> GENERAL_TERMS =
+      List.of(
+          "motivation success focus progress discipline",
+          "goal achievement consistency mindset",
+          "productivity habit building personal growth");
 
   private final GoalService goalService;
   private final MotivationImageRepository motivationImageRepository;
@@ -131,9 +211,11 @@ public class MotivationService {
 
   public MotivationDtos.FeedRefreshResponse refreshFeed(Long userId, Long goalId) {
     Goal goal = goalService.ownedGoal(userId, goalId);
-    saveImage(goal, pickFeedStyle(), MotivationImageSource.AUTO);
+    for (String style : pickFeedStyles(goal)) {
+      saveImage(goal, style, MotivationImageSource.AUTO);
+    }
     return new MotivationDtos.FeedRefreshResponse(
-        listByGoal(goal, OffsetDateTime.now()), getOrCreateDailyQuote(goal, LocalDate.now()));
+        listByGoal(goal, OffsetDateTime.now()), pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE));
   }
 
   private MotivationDtos.MotivationResponse saveImage(
@@ -240,20 +322,109 @@ public class MotivationService {
 
   private QuoteItem pickQuote(Goal goal, LocalDate quoteDate) {
     int seed = Long.hashCode(goal.getId() + quoteDate.toEpochDay());
-    int index = Math.floorMod(seed, QUOTES.size());
-    return QUOTES.get(index);
+    List<QuoteItem> pool = pickQuotePool(goal);
+    int index = Math.floorMod(seed, pool.size());
+    return pool.get(index);
   }
 
   private String resolveQuoteTranslation(String quoteText, String quoteAuthor) {
-    return QUOTES.stream()
+    return allQuotes().stream()
         .filter(item -> item.text().equals(quoteText) && item.author().equals(quoteAuthor))
         .map(QuoteItem::textRu)
         .findFirst()
         .orElse(quoteText);
   }
 
-  private String pickFeedStyle() {
-    return FEED_STYLES.get(ThreadLocalRandom.current().nextInt(FEED_STYLES.size()));
+  private List<String> pickFeedStyles(Goal goal) {
+    List<String> pool =
+        switch (detectTheme(goal)) {
+          case SPORT -> SPORT_TERMS;
+          case STUDY -> STUDY_TERMS;
+          case CODE -> CODE_TERMS;
+          default -> GENERAL_TERMS;
+        };
+    if (pool.isEmpty()) {
+      return List.of("motivation success focus progress discipline");
+    }
+    List<String> shuffled = new ArrayList<>(pool);
+    Collections.shuffle(shuffled);
+    List<String> styles = new ArrayList<>();
+    for (int i = 0; i < FEED_IMAGE_BATCH_SIZE; i++) {
+      styles.add(shuffled.get(i % shuffled.size()));
+    }
+    return styles;
+  }
+
+  private List<MotivationDtos.DailyQuoteResponse> pickFeedQuotes(Goal goal, int limit) {
+    List<QuoteItem> pool = pickQuotePool(goal);
+    if (pool.isEmpty()) {
+      return List.of();
+    }
+    int size = Math.min(Math.max(limit, 1), pool.size());
+    int start = ThreadLocalRandom.current().nextInt(pool.size());
+    List<MotivationDtos.DailyQuoteResponse> quotes = new ArrayList<>(size);
+    for (int i = 0; i < size; i++) {
+      QuoteItem item = pool.get((start + i) % pool.size());
+      quotes.add(
+          new MotivationDtos.DailyQuoteResponse(
+              null,
+              goal.getId(),
+              item.text(),
+              item.textRu(),
+              item.author(),
+              LocalDate.now().toString()));
+    }
+    return quotes;
+  }
+
+  private List<QuoteItem> pickQuotePool(Goal goal) {
+    return switch (detectTheme(goal)) {
+      case SPORT -> SPORT_QUOTES;
+      case STUDY -> STUDY_QUOTES;
+      case CODE -> CODE_QUOTES;
+      default -> GENERAL_QUOTES;
+    };
+  }
+
+  private GoalTheme detectTheme(Goal goal) {
+    String text =
+        (goal.getTitle() + " " + (goal.getDescription() == null ? " " : goal.getDescription()))
+            .toLowerCase();
+    if (containsAny(text, SPORT_MARKERS)) {
+      return GoalTheme.SPORT;
+    }
+    if (containsAny(text, CODE_MARKERS)) {
+      return GoalTheme.CODE;
+    }
+    if (containsAny(text, STUDY_MARKERS)) {
+      return GoalTheme.STUDY;
+    }
+    return GoalTheme.GENERAL;
+  }
+
+  private boolean containsAny(String text, List<String> markers) {
+    for (String marker : markers) {
+      if (text.contains(marker)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private List<QuoteItem> allQuotes() {
+    List<QuoteItem> all = new ArrayList<>();
+    all.addAll(SPORT_QUOTES);
+    all.addAll(STUDY_QUOTES);
+    all.addAll(CODE_QUOTES);
+    all.addAll(GENERAL_QUOTES);
+    return all;
+  }
+
+  private enum GoalTheme {
+    SPORT,
+    STUDY,
+    CODE,
+    GENERAL
   }
 
   private record QuoteItem(String text, String textRu, String author) {}

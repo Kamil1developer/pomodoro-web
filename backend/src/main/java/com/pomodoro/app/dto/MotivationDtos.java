@@ -28,7 +28,7 @@ public class MotivationDtos {
       String quoteDate) {}
 
   public record FeedRefreshResponse(
-      java.util.List<MotivationResponse> images, DailyQuoteResponse quote) {}
+      java.util.List<MotivationResponse> images, java.util.List<DailyQuoteResponse> quotes) {}
 
   public record FavoriteRequest(Boolean isFavorite) {}
 }

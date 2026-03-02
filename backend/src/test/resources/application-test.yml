@@ -22,4 +22,7 @@ app:
     ollama-model: llama3.2:1b
     local-image-api-url: http://localhost:7860
     local-image-steps: 2
+    web-image-api-url: https://commons.wikimedia.org
+    image-timeout-seconds: 2
+    chat-timeout-seconds: 30
   uploads-dir: target/test-uploads

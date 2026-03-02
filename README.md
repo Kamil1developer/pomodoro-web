@@ -2,14 +2,14 @@
 
 Полноценный MVP веб-приложения из 2 модулей:
 - `Контроль цели`: цели, задачи, фокус-сессии, фото-отчёты с AI-вердиктом, прогресс, дневной scheduler.
-- `Мотивация`: генерация AI-изображений (ручная + авто каждые 6 часов), галерея, избранное, ежедневные цитаты.
+- `Мотивация`: лента тематических изображений из интернета по цели, избранное, ежедневные цитаты.
 - `AI чат`: диалог по выбранной цели с хранением истории в БД и расширенным контекстом пользователя (профиль, все цели и задачи).
 
 Стек:
 - Backend: Java 21, Spring Boot 3, Spring Security (JWT), Validation, JPA, Scheduler, OpenAPI.
 - DB: PostgreSQL 16.
 - Frontend: React + TypeScript + Vite.
-- Локальная генерация изображений (опционально): FastAPI + Diffusers (`local-image-service`).
+- Источник изображений ленты: Wikimedia Commons API (скачивание по тематике цели).
 - Хранение файлов: локально в backend `uploads/` + путь в БД.
 - Оркестрация: Docker Compose (`postgres + backend + frontend`).
 
@@ -17,7 +17,6 @@
 
 - `backend/` — Spring Boot API
 - `frontend/` — React приложение
-- `local-image-service/` — локальный сервис генерации изображений (Diffusers)
 - `docker-compose.yml` — локальный запуск всего стека
 - `.env.example` — пример переменных окружения
 
@@ -54,20 +53,18 @@ docker compose up --build
 
 - `AI_MODE=local`:
   - чат идёт через локальный Ollama (`OLLAMA_MODEL`),
-  - по умолчанию мотивационные картинки берутся из быстрого web-источника (`https://picsum.photos`) и сохраняются в `uploads/`,
-  - если нужен именно локальный Diffusers, выставьте `USE_WEB_IMAGE_FEED=false` (тогда используется `local-image-service`),
+  - мотивационные картинки в ленте скачиваются из интернета по тематике цели через Wikimedia Commons API и сохраняются в `uploads/`,
+  - базовый URL источника можно поменять через `WEB_IMAGE_API_URL` (по умолчанию `https://commons.wikimedia.org`),
   - запускать с профилем Compose и режимом `local`:
 ```bash
 AI_MODE=local docker compose --profile local-ai up --build
 ```
   - либо выставить `AI_MODE=local` в `.env`,
-  - первый запуск может занять много времени из-за скачивания весов моделей,
+  - первый запуск может занять время только на Ollama (для чата),
   - один раз скачайте модель Ollama:
 ```bash
 docker compose exec ollama ollama pull llama3.2:1b
 ```
-  - по умолчанию для `local-image-service` используется лёгкая модель `hf-internal-testing/tiny-stable-diffusion-pipe` (стабильнее для ноутбуков по памяти).
-  - если у вас больше RAM и нужна картинка получше, можно в `.env` задать `LOCAL_IMAGE_MODEL_ID=segmind/tiny-sd`.
   - чтобы лента не зависала, добавлен таймаут `AI_IMAGE_TIMEOUT_SECONDS` (по умолчанию 8 сек).
 
 ## Основные API эндпоинты

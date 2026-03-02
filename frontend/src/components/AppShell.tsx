@@ -90,10 +90,14 @@ export function AppShell() {
     const base = selectedGoal?.themeColor ?? DEFAULT_THEME_COLOR;
     const soft = tintColor(base, 0.84);
     const deep = shadeColor(base, 0.52);
+    const primary = shadeColor(base, 0.66);
+    const primaryStrong = shadeColor(base, 0.5);
     const root = document.documentElement;
     root.style.setProperty('--goal-color', base);
     root.style.setProperty('--goal-color-soft', soft);
     root.style.setProperty('--goal-color-deep', deep);
+    root.style.setProperty('--primary', primary);
+    root.style.setProperty('--primary-strong', primaryStrong);
   }, [selectedGoal]);
 
   const context: AppShellContext = {

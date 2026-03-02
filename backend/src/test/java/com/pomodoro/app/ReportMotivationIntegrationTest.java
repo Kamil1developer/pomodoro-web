@@ -93,8 +93,11 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                 .header("Authorization", bearer(tokens.accessToken())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.images").isArray())
-        .andExpect(jsonPath("$.quote.quoteText").isString())
-        .andExpect(jsonPath("$.quote.quoteTextRu").isString());
+        .andExpect(jsonPath("$.images.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
+        .andExpect(jsonPath("$.quotes").isArray())
+        .andExpect(jsonPath("$.quotes.length()").value(3))
+        .andExpect(jsonPath("$.quotes[0].quoteText").isString())
+        .andExpect(jsonPath("$.quotes[0].quoteTextRu").isString());
 
     mockMvc
         .perform(

@@ -24,6 +24,7 @@ const emptyGoalForm: GoalFormState = {
 export function ControlPage() {
   const { goals, selectedGoal, selectedGoalId, setSelectedGoalId, reloadGoals } = useAppShellContext();
   const [goalForm, setGoalForm] = useState<GoalFormState>(emptyGoalForm);
+  const [createGoalThemeColor, setCreateGoalThemeColor] = useState('#dff6e5');
   const [taskTitle, setTaskTitle] = useState('');
   const [reportComment, setReportComment] = useState('');
   const [reportFile, setReportFile] = useState<File | null>(null);
@@ -111,11 +112,12 @@ export function ControlPage() {
         description: String(formData.get('description') ?? '').trim() || undefined,
         targetHours: Number(formData.get('targetHours') || 0) || undefined,
         deadline: String(formData.get('deadline') ?? '').trim() || undefined,
-        themeColor: String(formData.get('themeColor') ?? '').trim() || '#dff6e5'
+        themeColor: createGoalThemeColor || '#dff6e5'
       });
       await reloadGoals();
       setSelectedGoalId(created.id);
       event.currentTarget.reset();
+      setCreateGoalThemeColor('#dff6e5');
     } catch (err) {
       setError((err as Error).message);
     }
@@ -255,7 +257,13 @@ export function ControlPage() {
           </div>
           <label>
             <span>Цвет цели</span>
-            <input name="themeColor" type="color" defaultValue="#dff6e5" />
+            <input
+              className="goal-color-input"
+              name="themeColor"
+              type="color"
+              value={createGoalThemeColor}
+              onChange={(event) => setCreateGoalThemeColor(event.target.value)}
+            />
           </label>
           <button className="btn" type="submit">
             Добавить цель
@@ -301,6 +309,7 @@ export function ControlPage() {
               <label>
                 <span>Цвет цели</span>
                 <input
+                  className="goal-color-input"
                   type="color"
                   value={goalForm.themeColor}
                   onChange={(event) => setGoalForm((prev) => ({ ...prev, themeColor: event.target.value }))}

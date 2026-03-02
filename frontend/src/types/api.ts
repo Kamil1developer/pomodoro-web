@@ -79,7 +79,7 @@ export interface MotivationQuote {
 
 export interface MotivationFeed {
   images: MotivationImage[];
-  quote: MotivationQuote;
+  quotes: MotivationQuote[];
 }
 
 export interface ChatMessage {
