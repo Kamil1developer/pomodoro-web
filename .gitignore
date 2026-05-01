@@ -5,3 +5,5 @@ frontend/node_modules
 frontend/dist
 uploads
 .DS_Store
+tmp/
+tools/__pycache__/

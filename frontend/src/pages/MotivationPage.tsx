@@ -82,10 +82,6 @@ export function MotivationPage() {
           <strong>{visibleImages.length}</strong>
         </div>
         <p className="muted">Цель: {selectedGoal.title}</p>
-        <p className="muted">
-          Лента обновляется только по кнопке ниже. На экране показываются 3 картинки, и у каждой
-          картинки своя цитата.
-        </p>
         <div className="inline-actions">
           <button className="btn" onClick={() => void refreshFeed()} disabled={refreshing}>
             {refreshing ? 'Обновление...' : 'Обновить ленту'}

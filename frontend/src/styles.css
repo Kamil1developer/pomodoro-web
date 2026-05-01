@@ -201,6 +201,12 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  align-self: start;
+  z-index: 20;
 }
 
 .brand {
@@ -221,6 +227,14 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   gap: 0.35rem;
 }
 
+.sidebar-toggle {
+  width: 100%;
+}
+
+.sidebar-collapsed .main-nav {
+  display: none;
+}
+
 .main-nav a {
   text-decoration: none;
   padding: 0.55rem 0.7rem;
@@ -239,6 +253,7 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 100vh;
 }
 
 .topbar {
@@ -689,6 +704,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   .sidebar {
     border-right: none;
     border-bottom: 1px solid var(--border);
+    height: auto;
+    max-height: 100vh;
   }
 
   .inline-fields {

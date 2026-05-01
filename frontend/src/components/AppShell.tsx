@@ -7,6 +7,7 @@ import type { AppShellContext } from '../types/app';
 import { GoalSelector } from './GoalSelector';
 
 const SELECTED_GOAL_KEY = 'pomodoro_selected_goal_id';
+const NAV_COLLAPSED_KEY = 'pomodoro_nav_collapsed';
 const DEFAULT_THEME_COLOR = '#dff6e5';
 
 function getStoredGoalId(): number | null {
@@ -22,6 +23,9 @@ export function AppShell() {
   const navigate = useNavigate();
   const [goals, setGoals] = useState<Goal[]>([]);
   const [selectedGoalId, setSelectedGoalIdState] = useState<number | null>(getStoredGoalId());
+  const [isNavCollapsed, setIsNavCollapsed] = useState(
+    () => localStorage.getItem(NAV_COLLAPSED_KEY) === '1'
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +69,14 @@ export function AppShell() {
       return;
     }
     localStorage.setItem(SELECTED_GOAL_KEY, String(goalId));
+  }, []);
+
+  const toggleNav = useCallback(() => {
+    setIsNavCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(NAV_COLLAPSED_KEY, next ? '1' : '0');
+      return next;
+    });
   }, []);
 
   const logout = useCallback(async () => {
@@ -127,11 +139,15 @@ export function AppShell() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      <aside className={`sidebar ${isNavCollapsed ? 'sidebar-collapsed' : ''}`}>
         <Link to="/" className="brand">
           Pomodoro Web
         </Link>
         <p className="brand-subtitle">Контроль цели + мотивация</p>
+
+        <button className="btn btn-ghost sidebar-toggle" onClick={toggleNav} type="button">
+          {isNavCollapsed ? 'Развернуть вкладки' : 'Свернуть вкладки'}
+        </button>
 
         <nav className="main-nav">
           <NavLink to="/" end>
