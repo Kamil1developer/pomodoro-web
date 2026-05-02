@@ -218,7 +218,10 @@ public class MotivationService {
       try {
         saveImage(goal, style, MotivationImageSource.AUTO);
       } catch (Exception e) {
-        log.warn("Не удалось обновить мотивационную картинку для цели {}: {}", goal.getId(), e.getMessage());
+        log.warn(
+            "Не удалось обновить мотивационную картинку для цели {}: {}",
+            goal.getId(),
+            e.getMessage());
       }
     }
     return new MotivationDtos.FeedRefreshResponse(

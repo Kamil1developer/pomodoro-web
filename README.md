@@ -1,17 +1,28 @@
 # Pomodoro Web MVP (Monorepo)
 
-Полноценный MVP веб-приложения из 2 модулей:
-- `Контроль цели`: цели, задачи, фокус-сессии, фото-отчёты с AI-вердиктом, прогресс, дневной scheduler.
-- `Мотивация`: лента тематических изображений из интернета по цели, избранное, ежедневные цитаты.
-- `AI чат`: диалог по выбранной цели с хранением истории в БД и расширенным контекстом пользователя (профиль, все цели и задачи).
+Pomodoro Web теперь описывается как единый `Goal Experience`, а не как набор разрозненных режимов.
 
-Стек:
-- Backend: Java 21, Spring Boot 3, Spring Security (JWT), Validation, JPA, Scheduler, OpenAPI.
-- DB: PostgreSQL 16.
-- Frontend: React + TypeScript + Vite.
-- Источник изображений ленты: Wikimedia Commons API (скачивание по тематике цели).
-- Хранение файлов: локально в backend `uploads/` + путь в БД.
-- Оркестрация: Docker Compose (`postgres + backend + frontend`).
+Основная идея продукта:
+- пользователь создаёт цель;
+- настраивает ежедневное обязательство;
+- выполняет Pomodoro-сессии;
+- отправляет фото-отчёт;
+- AI подтверждает или отклоняет прогресс;
+- система пересчитывает streak, discipline score, риск и прогноз достижения цели;
+- мотивация, изображения, цитаты и рекомендации подстраиваются под реальное состояние цели.
+
+Product flow:
+
+`goal → commitment → Pomodoro → report → AI verification → streak / discipline score / risk / forecast → motivation`
+
+## Стек
+
+- Backend: Java 21, Spring Boot 3, Spring Security (JWT), Validation, JPA, Scheduler, OpenAPI
+- DB: PostgreSQL 16
+- Frontend: React + TypeScript + Vite
+- Источник мотивационных изображений: Wikimedia Commons API
+- Хранение файлов: локально в backend `uploads/` + путь в БД
+- Оркестрация: Docker Compose (`postgres + backend + frontend`)
 
 ## Структура
 
@@ -35,7 +46,7 @@ docker compose up --build
 3. Откройте:
 - Frontend: `http://localhost:${FRONTEND_PORT:-5173}`
 - Backend API: `http://localhost:${BACKEND_PORT:-8080}`
-- Swagger UI: `http://localhost:${BACKEND_PORT:-8080}/swagger-ui.html`
+- Swagger UI: `http://localhost:${BACKEND_PORT:-8080}/swagger-ui/index.html`
 
 Если порт `8080`/`5173`/`5432` занят, измените `BACKEND_PORT`, `FRONTEND_PORT`, `POSTGRES_PORT` в `.env`.
 
@@ -43,124 +54,208 @@ docker compose up --build
 
 Настраивается через `.env`:
 
-- `AI_MODE=mock` (по умолчанию):
+- `AI_MODE=mock`
   - никаких внешних вызовов,
-  - предсказуемые ответы для анализа фото/чата/генерации изображений.
+  - предсказуемые ответы для анализа фото, рекомендаций и чата.
 
-- `AI_MODE=openai`:
+- `AI_MODE=openai`
   - реальные вызовы OpenAI API,
-  - нужны `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_VISION_MODEL`, `OPENAI_IMAGE_MODEL`.
+  - нужны `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_VISION_MODEL`.
 
-- `AI_MODE=local`:
+- `AI_MODE=local`
   - чат идёт через локальный Ollama (`OLLAMA_MODEL`),
-  - мотивационные картинки в ленте скачиваются из интернета по тематике цели через Wikimedia Commons API и сохраняются в `uploads/`,
-  - базовый URL источника можно поменять через `WEB_IMAGE_API_URL` (по умолчанию `https://commons.wikimedia.org`),
-  - запускать с профилем Compose и режимом `local`:
-```bash
-AI_MODE=local docker compose --profile local-ai up --build
-```
-  - либо выставить `AI_MODE=local` в `.env`,
-  - первый запуск может занять время только на Ollama (для чата),
-  - один раз скачайте модель Ollama:
-```bash
-docker compose exec ollama ollama pull llama3.2:1b
-```
-  - чтобы лента не зависала, добавлен таймаут `AI_IMAGE_TIMEOUT_SECONDS` (по умолчанию 8 сек).
+  - мотивационные картинки для ленты подбираются из интернета по теме цели,
+  - изображения сохраняются в `uploads/` и становятся частью истории цели.
 
-## Основные API эндпоинты
+## Goal Experience
 
-Все endpoint'ы под `/api`, кроме Swagger и статики `/uploads/**`.
+Каждая цель теперь выступает центром продукта и объединяет:
+- описание цели и дедлайн;
+- ежедневное обязательство (`goal_commitments`);
+- задачи на день;
+- Pomodoro / focus sessions;
+- фото-отчёты с AI-проверкой;
+- streak и discipline score;
+- статус риска (`LOW`, `MEDIUM`, `HIGH`);
+- прогноз достижения цели;
+- личную награду;
+- мотивационные изображения и цитаты;
+- AI / rule-based recommendation;
+- таймлайн событий цели (`goal_events`).
 
-- Auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout`
-- Goals: `GET/POST /api/goals`, `GET/PUT/DELETE /api/goals/{id}`
-- Tasks: `GET/POST /api/goals/{id}/tasks`, `PUT/DELETE /api/goals/{goalId}/tasks/{taskId}`
-- Focus: `POST /api/goals/{id}/focus/start`, `POST /api/goals/{id}/focus/stop`, `GET /api/goals/{id}/focus`
-- Reports: `POST /api/goals/{id}/reports` (multipart `file + comment`), `GET /api/goals/{id}/reports`
-- Motivation: `POST /api/goals/{id}/motivation/generate`, `GET /api/goals/{id}/motivation`, `GET /api/goals/{id}/motivation/quote`, `PATCH /api/motivation/{imgId}/favorite`, `DELETE /api/motivation/{imgId}`
-- Chat: `POST /api/goals/{id}/chat/send`, `GET /api/goals/{id}/chat/history`
-- Stats: `GET /api/goals/{id}/stats`
+### Новые сущности
+
+- `goal_commitments`
+  - ежедневная норма в минутах;
+  - период действия;
+  - completedDays / missedDays;
+  - disciplineScore;
+  - currentStreak / bestStreak;
+  - riskStatus;
+  - personalRewardTitle / personalRewardDescription;
+  - rewardUnlocked.
+
+- `goal_events`
+  - история создания цели, фокус-сессий, отчётов, изменения streak, discipline score, риска и награды.
+
+- `reports.ai_confidence`
+  - сохраняет confidence из AI-анализа фото-отчёта.
 
 ## Схема БД
 
-Явно задана миграциями Flyway: `V1__init.sql` + `V2__chat_context_theme_and_motivation_feed.sql`.
+Схема задаётся Flyway-миграциями:
+- `V1__init.sql`
+- `V2__chat_context_theme_and_motivation_feed.sql`
+- `V3__goal_commitment_and_goal_events.sql`
 
-Базовые таблицы:
+Ключевые таблицы:
 - `users`
 - `goals`
 - `tasks`
 - `focus_sessions`
 - `reports`
+- `daily_summaries`
+- `goal_commitments`
+- `goal_events`
 - `motivation_images`
+- `motivation_quotes`
 - `chat_threads`
 - `chat_messages`
 - `refresh_tokens`
-- `daily_summaries`
-- `motivation_quotes`
 
-Ключевые дополнения V2:
-- `users.full_name` — имя пользователя для контекста AI-чата.
-- `goals.theme_color` — цвет цели (используется для фона UI при переключении целей).
-- `motivation_images.generated_by`, `motivation_images.favorited_at` — источник картинки и логика пина избранного на 24 часа.
+## Основные API endpoints
+
+Все endpoints находятся под `/api`, кроме Swagger и статики `/uploads/**`.
+
+### Auth
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `POST /api/auth/refresh`
+- `POST /api/auth/logout`
+
+### Goals
+- `GET /api/goals`
+- `POST /api/goals`
+- `GET /api/goals/{id}`
+- `PUT /api/goals/{id}`
+- `DELETE /api/goals/{id}`
+
+### Tasks
+- `GET /api/goals/{id}/tasks`
+- `POST /api/goals/{id}/tasks`
+- `PUT /api/goals/{goalId}/tasks/{taskId}`
+- `DELETE /api/goals/{goalId}/tasks/{taskId}`
+
+### Focus
+- `POST /api/goals/{id}/focus/start`
+- `POST /api/goals/{id}/focus/stop`
+- `GET /api/goals/{id}/focus`
+
+### Reports
+- `POST /api/goals/{id}/reports`
+- `GET /api/goals/{id}/reports`
+
+### Goal Experience
+- `POST /api/goals/{goalId}/commitment`
+- `GET /api/goals/{goalId}/commitment`
+- `GET /api/goals/{goalId}/today`
+- `GET /api/goals/{goalId}/forecast`
+- `GET /api/goals/{goalId}/events`
+- `GET /api/goals/{goalId}/experience`
+- `GET /api/goal-experience`
+
+### Motivation
+- `POST /api/goals/{id}/motivation/generate`
+- `GET /api/goals/{id}/motivation`
+- `GET /api/goals/{id}/motivation/quote`
+- `POST /api/goals/{id}/motivation/refresh-feed`
+- `PATCH /api/motivation/{imgId}/favorite`
+- `DELETE /api/motivation/{imgId}`
+
+### Chat / Motivator
+- `POST /api/goals/{id}/chat/send`
+- `GET /api/goals/{id}/chat/history`
+- `DELETE /api/goals/{id}/chat/history`
+
+### Stats
+- `GET /api/goals/{id}/stats`
 
 ## Scheduler
 
-`DailyScheduler` запускается ежедневно в `00:05` (временная зона контейнера backend):
-- переводит `PENDING` отчёты прошлых дней в `OVERDUE`,
-- пересчитывает `streak`,
-- формирует `daily_summaries`.
+`DailyScheduler` запускается ежедневно в `00:05` и делает реальные nightly-перерасчёты:
+- переводит старые `PENDING` отчёты в `OVERDUE`;
+- создаёт `daily_summaries`;
+- вызывает processing прошлого дня для `goal_commitments`.
 
-Дополнительные cron-задачи:
-- каждые 6 часов: авто-генерация мотивационных изображений для всех целей.
-- ежедневно в `00:10`: генерация/обновление ежедневной цитаты для каждой цели.
+Логика закрытия дня строится на реальных данных прошлого дня:
+- focus minutes по цели;
+- наличие подтверждённого фото-отчёта;
+- изменение streak;
+- изменение discipline score;
+- перерасчёт riskStatus;
+- разблокировка награды при успешном завершении обязательства.
+
+Никаких simulate day / fake flow в проекте нет.
 
 ## JWT и безопасность
 
-- JWT `access + refresh`.
-- Роли: `USER`, `ADMIN`.
-- API закрыт авторизацией, кроме `/api/auth/*`.
-- Единый JSON-формат ошибок (`ErrorResponse`) + глобальный handler.
+- JWT `access + refresh`
+- роли: `USER`, `ADMIN`
+- все endpoints закрыты, кроме `/api/auth/*`
+- единый JSON-формат ошибок + global exception handler
+- чужой пользователь не может читать или изменять `goal experience` чужой цели
 
 ## Команды качества и тесты
 
 ### Backend
 
-Локально (через Maven Wrapper):
+Локально:
 ```bash
 cd backend
 ./mvnw spotless:check test
 ```
 
-Через Docker (без локального Maven):
+Если локальный JDK конфликтует с Lombok, можно использовать контейнер с Java 21:
 ```bash
 docker run --rm -v "$PWD/backend":/app -w /app maven:3.9.9-eclipse-temurin-21 mvn -q spotless:check test
 ```
 
-Покрытие: 10 integration тестов (auth, security, goals/tasks, focus, reports, motivation, chat, scheduler).
-
 ### Frontend
 
-Через Docker (без локального Node):
+```bash
+cd frontend
+npm install
+npm run lint
+npm run test:run
+npm run build
+```
+
+Или без локального Node:
 ```bash
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install && npm run lint && npm run test:run && npm run build'
 ```
 
-Покрытие: 4 тестовых файла / 7 тестов.
+## Демонстрация проекта
 
-## Что можно сделать сразу после `docker compose up`
+Для дипломной демонстрации важно использовать реальный накопленный аккаунт, а не demo-flow. В аккаунте должны быть:
+- цели;
+- ежедневные обязательства;
+- задачи по целям;
+- фокус-сессии;
+- фото-отчёты;
+- daily summaries;
+- события цели (`goal_events`);
+- статистика и мотивационная лента.
 
-1. Зарегистрироваться / войти.
-2. Создать цель (включая цвет) и задачи.
-3. Запустить/остановить фокус-сессию.
-4. Загрузить фото-отчёт и получить AI verdict (`mock` или `openai`).
-5. Получать авто-картинки (каждые 6 часов) и добавлять в избранное (пин в ленте 24 часа).
-6. Видеть ежедневную цитату с автором.
-7. Отправить сообщение в чат и получить ответ с учетом всех целей/задач пользователя.
+Тогда система показывает цель как единый сценарий: что нужно сделать сегодня, какой риск, какой прогноз, что уже подтверждено AI и какая следующая рекомендация.
 
-## Принятые решения и допущения
+## Принятые решения
 
-- Для прозрачности схемы включён Flyway, `ddl-auto=validate`.
-- Статистика в экране `Статистика` строится из `daily_summaries` (после запуска scheduler).
-- Изображения доступны по URL `/uploads/...` для удобного рендера в frontend.
-- Для регистрации frontend запрашивает имя (`fullName`), но backend также умеет подставить имя из email, если поле не передано.
-- В `mock` режиме мотивационные изображения генерируются как SVG-заглушки с контекстом цели.
-- В `local` режиме анализ фото работает по эвристике комментария (локальная vision-модель не подключалась).
+- backend не использует `ddl-auto update`, а опирается на Flyway;
+- день считается выполненным, если достигнута дневная норма по фокусу и есть `CONFIRMED` фото-отчёт;
+- riskStatus считается по простой и объяснимой логике:
+  - `LOW`: disciplineScore `>= 75` и `missedDays <= 1`
+  - `MEDIUM`: disciplineScore `50-74` или `missedDays 2-3`
+  - `HIGH`: disciplineScore `< 50` или `missedDays >= 4`
+- прогноз строится на `targetHours`, `focus_sessions`, `daily_summaries` и текущем discipline score;
+- AI recommendation на первом этапе rule-based, чтобы не ломать `mock/local/openai` режимы.

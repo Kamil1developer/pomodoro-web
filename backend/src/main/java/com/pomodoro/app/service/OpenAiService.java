@@ -53,15 +53,7 @@ public class OpenAiService implements AiService {
       List.of("fitness", "workout", "gym", "athlete", "training", "motivation");
   private static final List<String> STUDY_MARKERS =
       List.of(
-          "учеб",
-          "study",
-          "exam",
-          "school",
-          "university",
-          "lesson",
-          "language",
-          "курс",
-          "диплом");
+          "учеб", "study", "exam", "school", "university", "lesson", "language", "курс", "диплом");
   private static final List<String> STUDY_IMAGE_TERMS =
       List.of("study", "books", "learning", "student", "focus", "motivation");
   private static final List<String> CODE_MARKERS =
@@ -103,7 +95,8 @@ public class OpenAiService implements AiService {
         webClientBuilder
             .clone()
             .exchangeStrategies(imageExchangeStrategies)
-            .clientConnector(new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
+            .clientConnector(
+                new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
             .baseUrl(appProperties.ai().webImageApiUrl())
             .build();
   }
@@ -235,7 +228,8 @@ public class OpenAiService implements AiService {
         String backupPath = storageService.storeBytes(backupBytes, "motivation", "jpg");
         return new AiDtos.ImageResult(backupPath, prompt + " (backup feed)");
       } catch (Exception backupError) {
-        log.warn("Backup internet image loading failed in openai mode: {}", backupError.getMessage());
+        log.warn(
+            "Backup internet image loading failed in openai mode: {}", backupError.getMessage());
       }
       String svg =
           "<svg xmlns='http://www.w3.org/2000/svg' width='1024' height='1024'><rect width='100%' height='100%' fill='#f8f7f2'/>"
@@ -304,7 +298,11 @@ public class OpenAiService implements AiService {
 
   private List<String> buildSearchQueries(List<String> imageTags) {
     List<String> terms =
-        imageTags.stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).limit(6).toList();
+        imageTags.stream()
+            .filter(tag -> tag != null && !tag.isBlank())
+            .map(String::trim)
+            .limit(6)
+            .toList();
     String first = terms.isEmpty() ? "motivation" : terms.get(0);
     String second = terms.size() > 1 ? terms.get(1) : "success";
     String third = terms.size() > 2 ? terms.get(2) : "focus";
@@ -357,7 +355,9 @@ public class OpenAiService implements AiService {
 
   private List<String> buildImageTags(AiDtos.GoalContext goalContext, String styleOptions) {
     String combinedText =
-        (goalContext.title() + " " + (goalContext.description() == null ? "" : goalContext.description()))
+        (goalContext.title()
+                + " "
+                + (goalContext.description() == null ? "" : goalContext.description()))
             .toLowerCase(Locale.ROOT);
     Set<String> tags = new LinkedHashSet<>();
     if (containsAny(combinedText, SPORT_MARKERS)) {
@@ -426,10 +426,7 @@ public class OpenAiService implements AiService {
       return "webp";
     }
     if (bytes != null && bytes.length >= 12) {
-      if ((bytes[0] & 0xFF) == 0x89
-          && bytes[1] == 0x50
-          && bytes[2] == 0x4E
-          && bytes[3] == 0x47) {
+      if ((bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
         return "png";
       }
       if ((bytes[0] & 0xFF) == 0x52

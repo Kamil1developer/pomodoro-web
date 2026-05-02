@@ -90,7 +90,10 @@ class ChatSchedulerIntegrationTest extends IntegrationTestSupport {
         new MockMultipartFile("file", "proof.jpg", "image/jpeg", "fake-image-data".getBytes());
     MockMultipartFile comment =
         new MockMultipartFile(
-            "comment", "", "text/plain", "по задаче сделать задачу дня, нужно доработать".getBytes());
+            "comment",
+            "",
+            "text/plain",
+            "по задаче сделать задачу дня, нужно доработать".getBytes());
 
     String reportResponse =
         mockMvc

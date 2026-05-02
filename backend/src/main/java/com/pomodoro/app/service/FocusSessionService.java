@@ -16,14 +16,17 @@ public class FocusSessionService {
   private final GoalService goalService;
   private final DailyTaskPolicyService dailyTaskPolicyService;
   private final FocusSessionRepository focusSessionRepository;
+  private final GoalCommitmentService goalCommitmentService;
 
   public FocusSessionService(
       GoalService goalService,
       DailyTaskPolicyService dailyTaskPolicyService,
-      FocusSessionRepository focusSessionRepository) {
+      FocusSessionRepository focusSessionRepository,
+      GoalCommitmentService goalCommitmentService) {
     this.goalService = goalService;
     this.dailyTaskPolicyService = dailyTaskPolicyService;
     this.focusSessionRepository = focusSessionRepository;
+    this.goalCommitmentService = goalCommitmentService;
   }
 
   public GoalDtos.FocusSessionResponse start(Long userId, Long goalId) {
@@ -39,19 +42,24 @@ public class FocusSessionService {
     FocusSession session =
         focusSessionRepository.save(
             FocusSession.builder().goal(goal).startedAt(OffsetDateTime.now()).build());
+    goalCommitmentService.onFocusSessionStarted(goal);
     return toResponse(session);
   }
 
   public GoalDtos.FocusSessionResponse stop(Long userId, Long goalId) {
-    goalService.ownedGoal(userId, goalId);
+    Goal goal = goalService.ownedGoal(userId, goalId);
     FocusSession session =
         focusSessionRepository
             .findFirstByGoalIdAndEndedAtIsNullOrderByStartedAtDesc(goalId)
             .orElseThrow(() -> new AppException(HttpStatus.BAD_REQUEST, "No active focus session"));
     session.setEndedAt(OffsetDateTime.now());
     session.setDurationMinutes(
-        (int) Duration.between(session.getStartedAt(), session.getEndedAt()).toMinutes());
-    return toResponse(focusSessionRepository.save(session));
+        (int)
+            Math.max(
+                1, Duration.between(session.getStartedAt(), session.getEndedAt()).toMinutes()));
+    FocusSession saved = focusSessionRepository.save(session);
+    goalCommitmentService.onFocusSessionCompleted(goal, saved.getDurationMinutes());
+    return toResponse(saved);
   }
 
   public List<GoalDtos.FocusSessionResponse> list(Long userId, Long goalId) {

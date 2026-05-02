@@ -2,13 +2,14 @@ import { type FormEvent, useEffect, useRef, useState } from 'react';
 import { api } from '../lib/apiClient';
 import { shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
-import type { ChatMessage } from '../types/api';
+import type { ChatMessage, GoalExperience } from '../types/api';
 
 type UiChatMessage = ChatMessage & { pending?: boolean };
 
 export function ChatPage() {
   const { selectedGoal } = useAppShellContext();
   const [messages, setMessages] = useState<UiChatMessage[]>([]);
+  const [experience, setExperience] = useState<GoalExperience | null>(null);
   const [content, setContent] = useState('');
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [sending, setSending] = useState(false);
@@ -19,6 +20,7 @@ export function ChatPage() {
   useEffect(() => {
     if (!selectedGoal) {
       setMessages([]);
+      setExperience(null);
       return;
     }
 
@@ -26,8 +28,12 @@ export function ChatPage() {
       setLoadingHistory(true);
       setError(null);
       try {
-        const history = await api.getChatHistory(selectedGoal.id);
+        const [history, experienceData] = await Promise.all([
+          api.getChatHistory(selectedGoal.id),
+          api.getGoalExperience(selectedGoal.id)
+        ]);
         setMessages(history.messages);
+        setExperience(experienceData);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -68,6 +74,8 @@ export function ChatPage() {
     try {
       const history = await api.sendChat(selectedGoal.id, text);
       setMessages(history.messages);
+      const experienceData = await api.getGoalExperience(selectedGoal.id);
+      setExperience(experienceData);
     } catch (err) {
       setMessages((prev) =>
         prev.map((message) =>
@@ -120,6 +128,14 @@ export function ChatPage() {
           </button>
         </div>
         <p className="muted">Текущая цель: {selectedGoal.title}</p>
+        {experience ? (
+          <div className="chips">
+            <span className="chip">Осталось сегодня: {experience.today.remainingMinutesToday ?? 0} мин.</span>
+            <span className="chip">Серия: {experience.today.currentStreak ?? 0} дн.</span>
+            <span className="chip">Дисциплина: {experience.today.disciplineScore ?? 0}/100</span>
+            <span className="chip">Риск: {experience.today.riskStatus ?? 'Не рассчитан'}</span>
+          </div>
+        ) : null}
         <div className="chat-box" ref={scrollRef}>
           {messages.length === 0 && !loadingHistory ? <p className="muted">Начните диалог первым сообщением.</p> : null}
           {loadingHistory ? <p className="muted">Загрузка истории чата...</p> : null}
@@ -146,7 +162,7 @@ export function ChatPage() {
           <input
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder="Например: почему мой отчет отклонен и что исправить?"
+            placeholder="Например: как добить дневную норму и не сорвать streak?"
             disabled={clearing}
           />
           <button className="btn" type="submit" disabled={sending || clearing || !content.trim()}>

@@ -1,8 +1,9 @@
-import { type CSSProperties, type FormEvent, useEffect, useState } from 'react';
+import { type CSSProperties, type FormEvent, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api } from '../lib/apiClient';
+import { shortDate } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
-import type { GoalProgress } from '../types/api';
-import { ProgressCard } from '../components/ProgressCard';
+import type { GoalExperience } from '../types/api';
 
 interface GoalFormState {
   title: string;
@@ -10,6 +11,14 @@ interface GoalFormState {
   targetHours: string;
   deadline: string;
   themeColor: string;
+}
+
+interface CommitmentFormState {
+  dailyTargetMinutes: string;
+  startDate: string;
+  endDate: string;
+  personalRewardTitle: string;
+  personalRewardDescription: string;
 }
 
 const emptyGoalForm: GoalFormState = {
@@ -20,19 +29,37 @@ const emptyGoalForm: GoalFormState = {
   themeColor: '#dff6e5'
 };
 
+function defaultCommitmentForm(): CommitmentFormState {
+  const start = new Date();
+  const end = new Date();
+  end.setDate(end.getDate() + 30);
+  return {
+    dailyTargetMinutes: '60',
+    startDate: start.toISOString().slice(0, 10),
+    endDate: end.toISOString().slice(0, 10),
+    personalRewardTitle: '',
+    personalRewardDescription: ''
+  };
+}
+
 export function ControlPage() {
   const { goals, selectedGoal, selectedGoalId, setSelectedGoalId, reloadGoals } = useAppShellContext();
   const [goalForm, setGoalForm] = useState<GoalFormState>(emptyGoalForm);
   const [createGoalThemeColor, setCreateGoalThemeColor] = useState('#dff6e5');
-  const [progress, setProgress] = useState<GoalProgress | null>(null);
+  const [commitmentForm, setCommitmentForm] = useState<CommitmentFormState>(defaultCommitmentForm());
+  const [experience, setExperience] = useState<GoalExperience | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const createColorStyle = { '--picker-color': createGoalThemeColor } as CSSProperties;
   const editColorStyle = { '--picker-color': goalForm.themeColor } as CSSProperties;
 
+  const hasCommitment = Boolean(experience?.commitment);
+
   useEffect(() => {
     if (!selectedGoal) {
-      setProgress(null);
+      setExperience(null);
+      setGoalForm(emptyGoalForm);
+      setCommitmentForm(defaultCommitmentForm());
       return;
     }
 
@@ -40,8 +67,8 @@ export function ControlPage() {
       setLoading(true);
       setError(null);
       try {
-        const progressData = await api.getProgress(selectedGoal.id);
-        setProgress(progressData);
+        const data = await api.getGoalExperience(selectedGoal.id);
+        setExperience(data);
         setGoalForm({
           title: selectedGoal.title,
           description: selectedGoal.description ?? '',
@@ -49,6 +76,17 @@ export function ControlPage() {
           deadline: selectedGoal.deadline ?? '',
           themeColor: selectedGoal.themeColor ?? '#dff6e5'
         });
+        setCommitmentForm(
+          data.commitment
+            ? {
+                dailyTargetMinutes: String(data.commitment.dailyTargetMinutes),
+                startDate: data.commitment.startDate,
+                endDate: data.commitment.endDate ?? '',
+                personalRewardTitle: data.commitment.personalRewardTitle ?? '',
+                personalRewardDescription: data.commitment.personalRewardDescription ?? ''
+              }
+            : defaultCommitmentForm()
+        );
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -58,6 +96,8 @@ export function ControlPage() {
 
     void run();
   }, [selectedGoal]);
+
+  const recentEvents = useMemo(() => experience?.recentEvents.slice(0, 6) ?? [], [experience]);
 
   async function handleCreateGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,6 +138,8 @@ export function ControlPage() {
         themeColor: goalForm.themeColor || '#dff6e5'
       });
       await reloadGoals();
+      const refreshed = await api.getGoalExperience(selectedGoal.id);
+      setExperience(refreshed);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -113,6 +155,27 @@ export function ControlPage() {
       await reloadGoals();
       const nextId = goals.filter((goal) => goal.id !== selectedGoal.id)[0]?.id ?? null;
       setSelectedGoalId(nextId);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  async function handleCreateCommitment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedGoal) {
+      return;
+    }
+
+    try {
+      await api.createCommitment(selectedGoal.id, {
+        dailyTargetMinutes: Number(commitmentForm.dailyTargetMinutes),
+        startDate: commitmentForm.startDate,
+        endDate: commitmentForm.endDate || undefined,
+        personalRewardTitle: commitmentForm.personalRewardTitle || undefined,
+        personalRewardDescription: commitmentForm.personalRewardDescription || undefined
+      });
+      const refreshed = await api.getGoalExperience(selectedGoal.id);
+      setExperience(refreshed);
     } catch (err) {
       setError((err as Error).message);
     }
@@ -192,23 +255,124 @@ export function ControlPage() {
                 />
               </label>
               <div className="inline-actions">
-                <button className="btn" onClick={() => void handleUpdateGoal()}>
+                <button className="btn" type="button" onClick={() => void handleUpdateGoal()}>
                   Сохранить цель
                 </button>
-                <button className="btn btn-danger" onClick={() => void handleDeleteGoal()}>
+                <button className="btn btn-danger" type="button" onClick={() => void handleDeleteGoal()}>
                   Удалить
                 </button>
               </div>
             </div>
           </section>
 
-          {progress ? <ProgressCard progress={progress} /> : <section className="card">Загрузка прогресса...</section>}
+          <section className="card">
+            <div className="card-header">
+              <h3>Ежедневное обязательство</h3>
+              <Link className="btn btn-ghost" to={`/goals/${selectedGoal.id}`}>
+                Полная история цели
+              </Link>
+            </div>
+            {hasCommitment && experience?.commitment ? (
+              <div className="stack">
+                <div className="metric-grid compact-grid">
+                  <div className="metric-card">
+                    <span>Норма</span>
+                    <strong>{experience.commitment.dailyTargetMinutes} мин/день</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Серия</span>
+                    <strong>{experience.commitment.currentStreak} дн.</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Дисциплина</span>
+                    <strong>{experience.commitment.disciplineScore}/100</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Риск</span>
+                    <strong>{experience.commitment.riskStatus}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Награда</span>
+                    <strong>
+                      {experience.commitment.personalRewardTitle || 'Не задана'}
+                      {experience.commitment.rewardUnlocked ? ' · разблокирована' : ' · заблокирована'}
+                    </strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Период</span>
+                    <strong>
+                      {shortDate(experience.commitment.startDate)}
+                      {experience.commitment.endDate ? ` — ${shortDate(experience.commitment.endDate)}` : ''}
+                    </strong>
+                  </div>
+                </div>
+                <p className="muted">{experience.today.nextRecommendedAction}</p>
+              </div>
+            ) : (
+              <form className="stack" onSubmit={handleCreateCommitment}>
+                <p className="muted">Создайте обязательство, чтобы цель стала центром daily flow: фокус → отчёт → streak → прогноз.</p>
+                <div className="inline-fields commitment-inline">
+                  <input
+                    type="number"
+                    min={1}
+                    max={1440}
+                    value={commitmentForm.dailyTargetMinutes}
+                    onChange={(event) => setCommitmentForm((prev) => ({ ...prev, dailyTargetMinutes: event.target.value }))}
+                    placeholder="Минут в день"
+                    required
+                  />
+                  <input
+                    type="date"
+                    value={commitmentForm.startDate}
+                    onChange={(event) => setCommitmentForm((prev) => ({ ...prev, startDate: event.target.value }))}
+                    required
+                  />
+                  <input
+                    type="date"
+                    value={commitmentForm.endDate}
+                    onChange={(event) => setCommitmentForm((prev) => ({ ...prev, endDate: event.target.value }))}
+                  />
+                </div>
+                <input
+                  value={commitmentForm.personalRewardTitle}
+                  onChange={(event) => setCommitmentForm((prev) => ({ ...prev, personalRewardTitle: event.target.value }))}
+                  placeholder="Личная награда"
+                />
+                <textarea
+                  value={commitmentForm.personalRewardDescription}
+                  onChange={(event) => setCommitmentForm((prev) => ({ ...prev, personalRewardDescription: event.target.value }))}
+                  rows={3}
+                  placeholder="Опишите награду после завершения обязательства"
+                />
+                <button className="btn" type="submit">
+                  Создать обязательство
+                </button>
+              </form>
+            )}
+          </section>
+
+          <section className="card">
+            <h3>История цели</h3>
+            {recentEvents.length === 0 ? (
+              <p className="muted">События появятся после запуска фокус-сессий, отчётов и закрытия дня scheduler-ом.</p>
+            ) : (
+              <ul className="timeline-list">
+                {recentEvents.map((event) => (
+                  <li key={event.id}>
+                    <strong>{event.title}</strong>
+                    <p>{event.description || 'Без дополнительного описания.'}</p>
+                    <time>{shortDate(event.createdAt)}</time>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
         </>
       )}
 
       {loading ? <section className="card">Обновление данных...</section> : null}
       {error ? <section className="card error-card">{error}</section> : null}
-      {selectedGoalId === null ? <section className="card">Выберите цель для управления данными.</section> : null}
+      {selectedGoalId === null ? <section className="card">Выберите цель для управления её параметрами.</section> : null}
     </div>
   );
 }

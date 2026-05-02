@@ -57,15 +57,7 @@ public class LocalAiService implements AiService {
       List.of("fitness", "workout", "gym", "athlete", "training", "motivation");
   private static final List<String> STUDY_MARKERS =
       List.of(
-          "учеб",
-          "study",
-          "exam",
-          "school",
-          "university",
-          "lesson",
-          "language",
-          "курс",
-          "диплом");
+          "учеб", "study", "exam", "school", "university", "lesson", "language", "курс", "диплом");
   private static final List<String> STUDY_IMAGE_TERMS =
       List.of("study", "books", "learning", "student", "focus", "motivation");
   private static final List<String> CODE_MARKERS =
@@ -105,7 +97,8 @@ public class LocalAiService implements AiService {
         webClientBuilder
             .clone()
             .exchangeStrategies(imageExchangeStrategies)
-            .clientConnector(new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
+            .clientConnector(
+                new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
             .baseUrl(appProperties.ai().webImageApiUrl())
             .build();
     this.storageService = storageService;
@@ -169,7 +162,9 @@ public class LocalAiService implements AiService {
     return new AiDtos.AnalyzeResult(
         AiVerdict.APPROVED,
         0.82,
-        "Локальный режим: отчет подтверждает выполнение задач дня: " + previewTasks(matchedTasks) + ".");
+        "Локальный режим: отчет подтверждает выполнение задач дня: "
+            + previewTasks(matchedTasks)
+            + ".");
   }
 
   @Override
@@ -286,8 +281,7 @@ public class LocalAiService implements AiService {
     return latinShare > 0.20 || latin > cyrillic / 2;
   }
 
-  private String fallbackRussianAnswer(
-      AiDtos.GoalContext goalContext, String lastUserMessage) {
+  private String fallbackRussianAnswer(AiDtos.GoalContext goalContext, String lastUserMessage) {
     String goalTitle = goalContext.title() == null ? "вашей цели" : goalContext.title();
     String request =
         (lastUserMessage == null || lastUserMessage.isBlank())
@@ -342,7 +336,8 @@ public class LocalAiService implements AiService {
   }
 
   private String buildPicsumUrl(List<String> imageTags) {
-    String seedText = String.join("-", imageTags) + "-" + ThreadLocalRandom.current().nextInt(1000, 9999);
+    String seedText =
+        String.join("-", imageTags) + "-" + ThreadLocalRandom.current().nextInt(1000, 9999);
     String seed = URLEncoder.encode(seedText, StandardCharsets.UTF_8);
     return "https://picsum.photos/seed/" + seed + "/1024/1024";
   }
@@ -392,7 +387,11 @@ public class LocalAiService implements AiService {
 
   private List<String> buildSearchQueries(List<String> imageTags) {
     List<String> terms =
-        imageTags.stream().filter(tag -> tag != null && !tag.isBlank()).map(String::trim).limit(6).toList();
+        imageTags.stream()
+            .filter(tag -> tag != null && !tag.isBlank())
+            .map(String::trim)
+            .limit(6)
+            .toList();
     String first = terms.isEmpty() ? "motivation" : terms.get(0);
     String second = terms.size() > 1 ? terms.get(1) : "success";
     String third = terms.size() > 2 ? terms.get(2) : "focus";
@@ -445,7 +444,9 @@ public class LocalAiService implements AiService {
 
   private List<String> buildImageTags(AiDtos.GoalContext goalContext, String styleOptions) {
     String combinedText =
-        (goalContext.title() + " " + (goalContext.description() == null ? "" : goalContext.description()))
+        (goalContext.title()
+                + " "
+                + (goalContext.description() == null ? "" : goalContext.description()))
             .toLowerCase(Locale.ROOT);
     Set<String> tags = new LinkedHashSet<>();
     if (containsAny(combinedText, SPORT_MARKERS)) {
@@ -514,10 +515,7 @@ public class LocalAiService implements AiService {
       return "webp";
     }
     if (bytes != null && bytes.length >= 12) {
-      if ((bytes[0] & 0xFF) == 0x89
-          && bytes[1] == 0x50
-          && bytes[2] == 0x4E
-          && bytes[3] == 0x47) {
+      if ((bytes[0] & 0xFF) == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
         return "png";
       }
       if ((bytes[0] & 0xFF) == 0x52
@@ -567,7 +565,8 @@ public class LocalAiService implements AiService {
       return List.of();
     }
     String block = description.substring(start + TASK_BLOCK_START.length(), end);
-    return block.lines()
+    return block
+        .lines()
         .map(String::trim)
         .filter(line -> line.startsWith("- "))
         .map(line -> line.substring(2).replaceAll("\\s*\\(статус:.*\\)$", "").trim())
@@ -606,7 +605,10 @@ public class LocalAiService implements AiService {
     if (text == null) {
       return "";
     }
-    return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{Nd}\\s]", " ").replaceAll("\\s+", " ").trim();
+    return text.toLowerCase(Locale.ROOT)
+        .replaceAll("[^\\p{L}\\p{Nd}\\s]", " ")
+        .replaceAll("\\s+", " ")
+        .trim();
   }
 
   private boolean containsAny(String text, Set<String> markers) {

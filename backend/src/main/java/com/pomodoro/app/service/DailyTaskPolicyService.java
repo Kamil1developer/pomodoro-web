@@ -36,8 +36,9 @@ public class DailyTaskPolicyService {
 
   public List<TaskItem> todayTasksForGoal(Goal goal) {
     DayRange range = todayRange();
-    return taskItemRepository.findByGoalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
-        goal.getId(), range.startInclusive(), range.endExclusive());
+    return taskItemRepository
+        .findByGoalIdAndCreatedAtGreaterThanEqualAndCreatedAtLessThanOrderByCreatedAtAsc(
+            goal.getId(), range.startInclusive(), range.endExclusive());
   }
 
   private DayRange todayRange() {

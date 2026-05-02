@@ -39,6 +39,8 @@ public class Report {
   @Enumerated(EnumType.STRING)
   private AiVerdict aiVerdict;
 
+  private Double aiConfidence;
+
   @Column(length = 3000)
   private String aiExplanation;
 

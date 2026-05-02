@@ -5,6 +5,7 @@ import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.Report;
 import com.pomodoro.app.enums.ReportStatus;
 import com.pomodoro.app.repository.*;
+import com.pomodoro.app.service.GoalCommitmentService;
 import com.pomodoro.app.service.MotivationService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -21,6 +22,7 @@ public class DailyScheduler {
   private final FocusSessionRepository focusSessionRepository;
   private final DailySummaryRepository dailySummaryRepository;
   private final MotivationService motivationService;
+  private final GoalCommitmentService goalCommitmentService;
 
   public DailyScheduler(
       ReportRepository reportRepository,
@@ -28,13 +30,15 @@ public class DailyScheduler {
       TaskItemRepository taskItemRepository,
       FocusSessionRepository focusSessionRepository,
       DailySummaryRepository dailySummaryRepository,
-      MotivationService motivationService) {
+      MotivationService motivationService,
+      GoalCommitmentService goalCommitmentService) {
     this.reportRepository = reportRepository;
     this.goalRepository = goalRepository;
     this.taskItemRepository = taskItemRepository;
     this.focusSessionRepository = focusSessionRepository;
     this.dailySummaryRepository = dailySummaryRepository;
     this.motivationService = motivationService;
+    this.goalCommitmentService = goalCommitmentService;
   }
 
   @Scheduled(cron = "0 5 0 * * *")
@@ -79,6 +83,8 @@ public class DailyScheduler {
                           .createdAt(OffsetDateTime.now())
                           .build()));
     }
+
+    goalCommitmentService.processPreviousDay(today.minusDays(1));
 
     log.info("Daily scheduler executed for {}", today);
   }

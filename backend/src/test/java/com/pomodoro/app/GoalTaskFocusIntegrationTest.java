@@ -121,7 +121,10 @@ class GoalTaskFocusIntegrationTest extends IntegrationTestSupport {
             post("/api/goals/{goalId}/focus/start", goalId)
                 .header("Authorization", bearer(tokens.accessToken())))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("Сначала добавьте хотя бы одну задачу")));
+        .andExpect(
+            jsonPath("$.message")
+                .value(
+                    org.hamcrest.Matchers.containsString("Сначала добавьте хотя бы одну задачу")));
   }
 
   private void createTask(String accessToken, Long goalId, String title) throws Exception {

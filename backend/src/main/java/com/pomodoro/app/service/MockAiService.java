@@ -151,7 +151,8 @@ public class MockAiService implements AiService {
       return List.of();
     }
     String block = description.substring(start + TASK_BLOCK_START.length(), end);
-    return block.lines()
+    return block
+        .lines()
         .map(String::trim)
         .filter(line -> line.startsWith("- "))
         .map(line -> line.substring(2).replaceAll("\\s*\\(статус:.*\\)$", "").trim())
@@ -190,7 +191,10 @@ public class MockAiService implements AiService {
     if (text == null) {
       return "";
     }
-    return text.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{Nd}\\s]", " ").replaceAll("\\s+", " ").trim();
+    return text.toLowerCase(Locale.ROOT)
+        .replaceAll("[^\\p{L}\\p{Nd}\\s]", " ")
+        .replaceAll("\\s+", " ")
+        .trim();
   }
 
   private boolean containsAny(String text, Set<String> markers) {

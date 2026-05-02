@@ -5,6 +5,7 @@ import { ChatPage } from './pages/ChatPage';
 import { ControlPage } from './pages/ControlPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { FocusPage } from './pages/FocusPage';
+import { GoalExperiencePage } from './pages/GoalExperiencePage';
 import { LoginPage } from './pages/LoginPage';
 import { MotivationPage } from './pages/MotivationPage';
 import { RegisterPage } from './pages/RegisterPage';
@@ -24,6 +25,7 @@ export function App() {
           <Route path="motivation" element={<MotivationPage />} />
           <Route path="chat" element={<ChatPage />} />
           <Route path="stats" element={<StatisticsPage />} />
+          <Route path="goals/:goalId" element={<GoalExperiencePage />} />
         </Route>
       </Route>
 

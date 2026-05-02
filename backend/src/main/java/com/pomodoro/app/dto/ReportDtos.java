@@ -14,6 +14,7 @@ public class ReportDtos {
       String imagePath,
       ReportStatus status,
       AiVerdict aiVerdict,
+      Double aiConfidence,
       String aiExplanation,
       OffsetDateTime createdAt) {}
 }

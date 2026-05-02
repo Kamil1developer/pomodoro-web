@@ -19,8 +19,7 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
     MockMultipartFile file =
         new MockMultipartFile("file", "proof.jpg", "image/jpeg", "fake-image-data".getBytes());
     MockMultipartFile comment =
-        new MockMultipartFile(
-            "comment", "", "text/plain", "сделал тренировку, готово".getBytes());
+        new MockMultipartFile("comment", "", "text/plain", "сделал тренировку, готово".getBytes());
 
     mockMvc
         .perform(
@@ -96,17 +95,18 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                 .header("Authorization", bearer(tokens.accessToken())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.images").isArray())
-        .andExpect(jsonPath("$.images.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
+        .andExpect(
+            jsonPath("$.images.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(3)))
         .andExpect(jsonPath("$.quotes").isArray())
         .andExpect(jsonPath("$.quotes.length()").value(3))
         .andExpect(jsonPath("$.quotes[0].quoteText").isString())
-            .andExpect(jsonPath("$.quotes[0].quoteTextRu").isString());
+        .andExpect(jsonPath("$.quotes[0].quoteTextRu").isString());
 
     mockMvc
         .perform(
             delete("/api/motivation/{id}", imageId)
                 .header("Authorization", bearer(tokens.accessToken())))
-            .andExpect(status().isOk());
+        .andExpect(status().isOk());
   }
 
   private void createTask(String accessToken, Long goalId, String title) throws Exception {

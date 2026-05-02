@@ -65,8 +65,7 @@ public class ChatService {
         chatMessageRepository.findByThreadIdOrderByCreatedAtAsc(thread.getId());
     List<AiDtos.ChatInputMessage> aiMessages = new ArrayList<>();
     aiMessages.add(
-        new AiDtos.ChatInputMessage(
-            "system", buildUserContextPrompt(userId, goal, content)));
+        new AiDtos.ChatInputMessage("system", buildUserContextPrompt(userId, goal, content)));
     history.forEach(
         m ->
             aiMessages.add(
@@ -124,7 +123,8 @@ public class ChatService {
   }
 
   private ChatThread createThread(Goal goal) {
-    return chatThreadRepository.save(ChatThread.builder().goal(goal).createdAt(OffsetDateTime.now()).build());
+    return chatThreadRepository.save(
+        ChatThread.builder().goal(goal).createdAt(OffsetDateTime.now()).build());
   }
 
   private String buildUserContextPrompt(Long userId, Goal activeGoal, String lastUserMessage) {

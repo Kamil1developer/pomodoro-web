@@ -1,7 +1,11 @@
 import {
   type ChatHistory,
+  type Forecast,
   type FocusSession,
   type Goal,
+  type GoalCommitment,
+  type GoalEvent,
+  type GoalExperience,
   type GoalProgress,
   type GoalStats,
   type MotivationFeed,
@@ -9,6 +13,7 @@ import {
   type MotivationQuote,
   type ReportItem,
   type TaskItem,
+  type TodayStatus,
   type TokenResponse
 } from '../types/api';
 import { clearTokens, getTokens, setTokens } from './authStorage';
@@ -252,6 +257,39 @@ export const api = {
   },
   getReports(goalId: number) {
     return request<ReportItem[]>(`/goals/${goalId}/reports`);
+  },
+  createCommitment(
+    goalId: number,
+    payload: {
+      dailyTargetMinutes: number;
+      startDate: string;
+      endDate?: string;
+      personalRewardTitle?: string;
+      personalRewardDescription?: string;
+    }
+  ) {
+    return request<GoalCommitment>(`/goals/${goalId}/commitment`, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  getCommitment(goalId: number) {
+    return request<GoalCommitment>(`/goals/${goalId}/commitment`);
+  },
+  getTodayStatus(goalId: number) {
+    return request<TodayStatus>(`/goals/${goalId}/today`);
+  },
+  getForecast(goalId: number) {
+    return request<Forecast>(`/goals/${goalId}/forecast`);
+  },
+  getGoalEvents(goalId: number) {
+    return request<GoalEvent[]>(`/goals/${goalId}/events`);
+  },
+  getGoalExperience(goalId: number) {
+    return request<GoalExperience>(`/goals/${goalId}/experience`);
+  },
+  getDashboardExperience() {
+    return request<GoalExperience[]>('/goal-experience');
   },
   generateMotivation(goalId: number, styleOptions: string) {
     return request<MotivationImage>(`/goals/${goalId}/motivation/generate`, {

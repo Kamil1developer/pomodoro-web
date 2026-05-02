@@ -5,6 +5,7 @@ import com.pomodoro.app.entity.DailySummary;
 import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.TaskItem;
+import com.pomodoro.app.enums.GoalEventType;
 import com.pomodoro.app.exception.AppException;
 import com.pomodoro.app.repository.DailySummaryRepository;
 import com.pomodoro.app.repository.FocusSessionRepository;
@@ -25,18 +26,21 @@ public class GoalService {
   private final TaskItemRepository taskItemRepository;
   private final FocusSessionRepository focusSessionRepository;
   private final DailySummaryRepository dailySummaryRepository;
+  private final GoalEventService goalEventService;
 
   public GoalService(
       GoalRepository goalRepository,
       UserRepository userRepository,
       TaskItemRepository taskItemRepository,
       FocusSessionRepository focusSessionRepository,
-      DailySummaryRepository dailySummaryRepository) {
+      DailySummaryRepository dailySummaryRepository,
+      GoalEventService goalEventService) {
     this.goalRepository = goalRepository;
     this.userRepository = userRepository;
     this.taskItemRepository = taskItemRepository;
     this.focusSessionRepository = focusSessionRepository;
     this.dailySummaryRepository = dailySummaryRepository;
+    this.goalEventService = goalEventService;
   }
 
   public List<GoalDtos.GoalResponse> getGoals(Long userId) {
@@ -71,7 +75,16 @@ public class GoalService {
             .currentStreak(0)
             .createdAt(OffsetDateTime.now())
             .build();
-    return toGoalResponse(goalRepository.save(goal));
+    Goal saved = goalRepository.save(goal);
+    goalEventService.createEvent(
+        saved,
+        null,
+        GoalEventType.GOAL_CREATED,
+        "Цель создана",
+        "Добавлена новая цель \"%s\".".formatted(saved.getTitle()),
+        null,
+        saved.getTitle());
+    return toGoalResponse(saved);
   }
 
   public GoalDtos.GoalResponse updateGoal(

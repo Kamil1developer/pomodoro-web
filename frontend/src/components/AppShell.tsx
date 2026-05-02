@@ -143,7 +143,7 @@ export function AppShell() {
         <Link to="/" className="brand">
           Pomodoro Web
         </Link>
-        <p className="brand-subtitle">Контроль цели + мотивация</p>
+        <p className="brand-subtitle">Goal Experience: фокус, отчёты, streak и мотивация в одной цели</p>
 
         <button className="btn btn-ghost sidebar-toggle" onClick={toggleNav} type="button">
           {isNavCollapsed ? 'Развернуть вкладки' : 'Свернуть вкладки'}

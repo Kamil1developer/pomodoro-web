@@ -24,18 +24,21 @@ public class ReportService {
   private final ReportRepository reportRepository;
   private final StorageService storageService;
   private final AiService aiService;
+  private final GoalCommitmentService goalCommitmentService;
 
   public ReportService(
       GoalService goalService,
       DailyTaskPolicyService dailyTaskPolicyService,
       ReportRepository reportRepository,
       StorageService storageService,
-      AiService aiService) {
+      AiService aiService,
+      GoalCommitmentService goalCommitmentService) {
     this.goalService = goalService;
     this.dailyTaskPolicyService = dailyTaskPolicyService;
     this.reportRepository = reportRepository;
     this.storageService = storageService;
     this.aiService = aiService;
+    this.goalCommitmentService = goalCommitmentService;
   }
 
   public ReportDtos.ReportResponse create(
@@ -77,10 +80,12 @@ public class ReportService {
                 .imagePath(path)
                 .status(status)
                 .aiVerdict(result.verdict())
+                .aiConfidence(result.confidence())
                 .aiExplanation(result.explanation())
                 .createdAt(OffsetDateTime.now())
                 .build());
 
+    goalCommitmentService.onReportSubmitted(report);
     return toResponse(report);
   }
 
@@ -100,6 +105,7 @@ public class ReportService {
         report.getImagePath(),
         report.getStatus(),
         report.getAiVerdict(),
+        report.getAiConfidence(),
         report.getAiExplanation(),
         report.getCreatedAt());
   }
