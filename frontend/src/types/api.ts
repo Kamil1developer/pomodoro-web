@@ -3,6 +3,14 @@ export type AiVerdict = 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_INFO';
 export type ChatRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
 export type CommitmentStatus = 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'FAILED';
 export type RiskStatus = 'LOW' | 'MEDIUM' | 'HIGH';
+export type MotivationImageFeedbackType = 'NOT_INTERESTED' | 'REPORTED';
+export type MotivationImageReportReason =
+  | 'INAPPROPRIATE'
+  | 'OFFENSIVE'
+  | 'LOW_QUALITY'
+  | 'IRRELEVANT'
+  | 'SPAM'
+  | 'OTHER';
 export type GoalEventType =
   | 'GOAL_CREATED'
   | 'COMMITMENT_CREATED'
@@ -156,8 +164,18 @@ export interface MotivationImage {
   createdAt: string;
 }
 
-export interface MotivationQuote {
+export interface MotivationImageItem {
   id: number;
+  imageUrl: string;
+  sourceUrl: string;
+  title: string;
+  description: string | null;
+  theme: string;
+  createdAt: string;
+}
+
+export interface MotivationQuote {
+  id: number | null;
   goalId: number;
   quoteText: string;
   quoteTextRu: string;
@@ -168,6 +186,17 @@ export interface MotivationQuote {
 export interface MotivationFeed {
   images: MotivationImage[];
   quotes: MotivationQuote[];
+}
+
+export interface MotivationFeedResponse {
+  images: MotivationImageItem[];
+  quote: MotivationQuote;
+  recommendation: string;
+}
+
+export interface ReportMotivationImageRequest {
+  reason: MotivationImageReportReason;
+  comment?: string;
 }
 
 export interface ChatMessage {

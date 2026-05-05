@@ -544,6 +544,60 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   justify-items: center;
 }
 
+.motivation-grid {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 1rem;
+}
+
+.motivation-grid-card {
+  background: var(--surface-strong);
+  border: 1px solid #e8ece1;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 6px 18px #29403f12;
+  display: grid;
+}
+
+.motivation-grid-image {
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  object-fit: cover;
+  display: block;
+  background: #eef2eb;
+}
+
+.motivation-grid-body {
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.motivation-grid-body p {
+  margin: 0;
+  color: var(--ink-soft);
+  min-height: 2.7rem;
+}
+
+.motivation-card-actions {
+  justify-content: space-between;
+}
+
+.report-modal {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.success-note {
+  margin: 0.8rem 0 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid #d6ead7;
+  background: #eefaf0;
+  color: #1d5b35;
+}
+
 .motivation-post {
   background: var(--surface-strong);
   border: 1px solid #e8ece1;

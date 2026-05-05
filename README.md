@@ -98,6 +98,11 @@ docker compose up --build
 - `goal_events`
   - история создания цели, фокус-сессий, отчётов, изменения streak, discipline score, риска и награды.
 
+- `motivation_image_feedbacks`
+  - хранит персональные сигналы пользователя по изображениям;
+  - тип feedback: `NOT_INTERESTED` или `REPORTED`;
+  - жалобы учитываются глобально, а `Неинтересно` работает персонально.
+
 - `reports.ai_confidence`
   - сохраняет confidence из AI-анализа фото-отчёта.
 
@@ -107,6 +112,7 @@ docker compose up --build
 - `V1__init.sql`
 - `V2__chat_context_theme_and_motivation_feed.sql`
 - `V3__goal_commitment_and_goal_events.sql`
+- `V4__motivation_image_feedback.sql`
 
 Ключевые таблицы:
 - `users`
@@ -118,6 +124,7 @@ docker compose up --build
 - `goal_commitments`
 - `goal_events`
 - `motivation_images`
+- `motivation_image_feedbacks`
 - `motivation_quotes`
 - `chat_threads`
 - `chat_messages`
@@ -169,6 +176,9 @@ docker compose up --build
 - `GET /api/goals/{id}/motivation`
 - `GET /api/goals/{id}/motivation/quote`
 - `POST /api/goals/{id}/motivation/refresh-feed`
+- `GET /api/motivation/feed?goalId={goalId}&limit=10`
+- `POST /api/motivation/images/{imageId}/not-interested`
+- `POST /api/motivation/images/{imageId}/report`
 - `PATCH /api/motivation/{imgId}/favorite`
 - `DELETE /api/motivation/{imgId}`
 
@@ -196,6 +206,33 @@ docker compose up --build
 - разблокировка награды при успешном завершении обязательства.
 
 Никаких simulate day / fake flow в проекте нет.
+
+## Мотивационный блок
+
+Мотивационная лента теперь работает как персонализированный feed, а не как статическая галерея:
+- backend подбирает до 10 изображений из интернета по теме выбранной цели;
+- изображения сохраняются в PostgreSQL (`motivation_images`) и переиспользуются между пользователями;
+- пользователь может отметить изображение как `Неинтересно`;
+- пользователь может пожаловаться на неподходящее изображение;
+- feedback хранится в PostgreSQL (`motivation_image_feedbacks`);
+- изображения, скрытые пользователем, больше не возвращаются именно этому пользователю;
+- изображения, набравшие 3 и более жалобы от разных пользователей, скрываются глобально (`hidden_globally = true`).
+
+Это сделано серверно: фронтенд только отправляет действие, а фильтрация выдачи выполняется на backend.
+
+## AI-проверка отчётов
+
+AI-анализ фото-отчётов стал строже и оценивает именно доказательство выполнения задачи:
+- AI получает цель, описание цели, задачи на сегодня, комментарий пользователя и критерии принятия;
+- просмотр видео засчитывается только если задача действительно про лекцию / видео;
+- для практических задач нужны признаки результата: код, IDE, конспект, документ, упражнение, тесты, проектный артефакт;
+- если доказательств недостаточно, отчет получает `NEEDS_MORE_INFO`, а статус отчёта остаётся `PENDING`;
+- если фото не связано с целью и задачами, AI возвращает `REJECTED`;
+- при ошибке AI backend не подтверждает отчёт автоматически, а безопасно возвращает `NEEDS_MORE_INFO`.
+
+Пример product-логики:
+- задача `Посмотреть лекцию по алгоритмам` -> скрин с видео может быть допустим;
+- задача `Написать код сервиса и запустить тесты` -> одного YouTube-видео недостаточно, нужен результат.
 
 ## JWT и безопасность
 
@@ -243,6 +280,7 @@ docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm insta
 - задачи по целям;
 - фокус-сессии;
 - фото-отчёты;
+- feedback по мотивационным изображениям;
 - daily summaries;
 - события цели (`goal_events`);
 - статистика и мотивационная лента.

@@ -1,32 +1,54 @@
 package com.pomodoro.app.service;
 
-import com.pomodoro.app.dto.AiDtos;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pomodoro.app.config.AppProperties;
+import com.pomodoro.app.dto.GoalExperienceDtos;
 import com.pomodoro.app.dto.MotivationDtos;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.MotivationImage;
+import com.pomodoro.app.entity.MotivationImageFeedback;
 import com.pomodoro.app.entity.MotivationQuote;
+import com.pomodoro.app.entity.User;
+import com.pomodoro.app.enums.MotivationImageFeedbackType;
+import com.pomodoro.app.enums.MotivationImageReportReason;
 import com.pomodoro.app.enums.MotivationImageSource;
 import com.pomodoro.app.exception.AppException;
+import com.pomodoro.app.repository.MotivationImageFeedbackRepository;
 import com.pomodoro.app.repository.MotivationImageRepository;
 import com.pomodoro.app.repository.MotivationQuoteRepository;
+import com.pomodoro.app.repository.UserRepository;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
 
 @Service
 public class MotivationService {
   private static final Logger log = LoggerFactory.getLogger(MotivationService.class);
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
   private static final int PIN_HOURS = 24;
   private static final int FEED_IMAGE_BATCH_SIZE = 3;
   private static final int FEED_QUOTE_BATCH_SIZE = 3;
+  private static final int DEFAULT_FEED_LIMIT = 10;
+  private static final int GLOBAL_REPORT_THRESHOLD = 3;
 
   private static final List<String> SPORT_MARKERS =
       List.of("спорт", "sport", "gym", "fitness", "workout", "run", "кардио", "трен");
@@ -113,27 +135,7 @@ public class MotivationService {
           new QuoteItem(
               "Action is the foundational key to all success.",
               "Действие — это фундаментальный ключ к любому успеху.",
-              "Pablo Picasso"),
-          new QuoteItem(
-              "What gets scheduled gets done, and what gets done changes your life.",
-              "То, что запланировано, выполняется; а выполненное меняет твою жизнь.",
-              "Robin Sharma"),
-          new QuoteItem(
-              "Small daily improvements over time lead to stunning results.",
-              "Маленькие ежедневные улучшения со временем приводят к впечатляющим результатам.",
-              "Robin Sharma"),
-          new QuoteItem(
-              "The future depends on what you do today.",
-              "Будущее зависит от того, что ты делаешь сегодня.",
-              "Mahatma Gandhi"),
-          new QuoteItem(
-              "Do not wait to strike till the iron is hot; make it hot by striking.",
-              "Не жди, пока железо раскалится; раскаляй его ударами.",
-              "William Butler Yeats"),
-          new QuoteItem(
-              "Well done is better than well said.",
-              "Хорошо сделано лучше, чем хорошо сказано.",
-              "Benjamin Franklin"));
+              "Pablo Picasso"));
 
   private static final List<String> SPORT_TERMS =
       List.of(
@@ -158,21 +160,40 @@ public class MotivationService {
 
   private final GoalService goalService;
   private final MotivationImageRepository motivationImageRepository;
+  private final MotivationImageFeedbackRepository motivationImageFeedbackRepository;
   private final MotivationQuoteRepository motivationQuoteRepository;
   private final AiService aiService;
   private final StorageService storageService;
+  private final UserRepository userRepository;
+  private final GoalCommitmentService goalCommitmentService;
+  private final WebClient webImageWebClient;
 
   public MotivationService(
       GoalService goalService,
       MotivationImageRepository motivationImageRepository,
+      MotivationImageFeedbackRepository motivationImageFeedbackRepository,
       MotivationQuoteRepository motivationQuoteRepository,
       AiService aiService,
-      StorageService storageService) {
+      StorageService storageService,
+      UserRepository userRepository,
+      GoalCommitmentService goalCommitmentService,
+      AppProperties appProperties,
+      WebClient.Builder webClientBuilder) {
     this.goalService = goalService;
     this.motivationImageRepository = motivationImageRepository;
+    this.motivationImageFeedbackRepository = motivationImageFeedbackRepository;
     this.motivationQuoteRepository = motivationQuoteRepository;
     this.aiService = aiService;
     this.storageService = storageService;
+    this.userRepository = userRepository;
+    this.goalCommitmentService = goalCommitmentService;
+    this.webImageWebClient =
+        webClientBuilder
+            .clone()
+            .baseUrl(appProperties.ai().webImageApiUrl())
+            .clientConnector(
+                new ReactorClientHttpConnector(HttpClient.create().followRedirect(true)))
+            .build();
   }
 
   public MotivationDtos.MotivationResponse generate(Long userId, Long goalId, String styleOptions) {
@@ -228,20 +249,312 @@ public class MotivationService {
         listByGoal(goal, OffsetDateTime.now()), pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE));
   }
 
+  public MotivationDtos.MotivationFeedResponse getMotivationFeed(
+      Long userId, Long goalId, Integer limit) {
+    Goal goal = resolveGoalForFeed(userId, goalId);
+    int normalizedLimit = normalizeLimit(limit);
+    ensureDailyQuoteForGoal(goal, LocalDate.now());
+    Set<Long> excludedImageIds =
+        motivationImageFeedbackRepository.findByUserId(userId).stream()
+            .map(feedback -> feedback.getImage().getId())
+            .collect(Collectors.toSet());
+    fillFeedIfNeeded(goal, normalizedLimit + excludedImageIds.size());
+    List<MotivationDtos.MotivationImageResponse> images =
+        selectFeedImages(goal, excludedImageIds, normalizedLimit);
+    if (images.size() < normalizedLimit) {
+      fillFeedIfNeeded(goal, normalizedLimit + excludedImageIds.size() + 6);
+      images = selectFeedImages(goal, excludedImageIds, normalizedLimit);
+    }
+
+    GoalExperienceDtos.TodayStatusResponse todayStatus = null;
+    try {
+      todayStatus = goalCommitmentService.getTodayStatus(userId, goal.getId());
+    } catch (Exception ignored) {
+      // Goal может еще не иметь commitment; feed все равно должен работать.
+    }
+
+    return new MotivationDtos.MotivationFeedResponse(
+        images,
+        getOrCreateDailyQuote(goal, LocalDate.now()),
+        todayStatus != null
+            ? todayStatus.nextRecommendedAction()
+            : "Сделайте хотя бы одну фокус-сессию и подготовьте доказательство результата по цели.");
+  }
+
+  public MotivationDtos.FeedbackResponse markImageNotInteresting(Long userId, Long imageId) {
+    MotivationImage image =
+        motivationImageRepository
+            .findById(imageId)
+            .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Image not found"));
+    if (motivationImageFeedbackRepository.existsByUserIdAndImageIdAndType(
+        userId, imageId, MotivationImageFeedbackType.NOT_INTERESTED)) {
+      return new MotivationDtos.FeedbackResponse(
+          imageId, "OK", "Больше не будем показывать это изображение");
+    }
+
+    motivationImageFeedbackRepository.save(
+        MotivationImageFeedback.builder()
+            .user(loadUser(userId))
+            .image(image)
+            .type(MotivationImageFeedbackType.NOT_INTERESTED)
+            .createdAt(OffsetDateTime.now())
+            .build());
+    return new MotivationDtos.FeedbackResponse(
+        imageId, "OK", "Больше не будем показывать это изображение");
+  }
+
+  public MotivationDtos.FeedbackResponse reportImage(
+      Long userId, Long imageId, MotivationImageReportReason reason, String comment) {
+    MotivationImage image =
+        motivationImageRepository
+            .findById(imageId)
+            .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Image not found"));
+    if (!motivationImageFeedbackRepository.existsByUserIdAndImageIdAndType(
+        userId, imageId, MotivationImageFeedbackType.REPORTED)) {
+      motivationImageFeedbackRepository.save(
+          MotivationImageFeedback.builder()
+              .user(loadUser(userId))
+              .image(image)
+              .type(MotivationImageFeedbackType.REPORTED)
+              .reason(reason)
+              .comment(comment)
+              .createdAt(OffsetDateTime.now())
+              .build());
+    }
+
+    long reportCount =
+        motivationImageFeedbackRepository.countByImageIdAndType(
+            imageId, MotivationImageFeedbackType.REPORTED);
+    image.setReportCount((int) reportCount);
+    if (reportCount >= GLOBAL_REPORT_THRESHOLD) {
+      image.setHiddenGlobally(true);
+    }
+    motivationImageRepository.save(image);
+    return new MotivationDtos.FeedbackResponse(imageId, "OK", "Спасибо, мы учтём вашу жалобу");
+  }
+
+  private User loadUser(Long userId) {
+    return userRepository
+        .findById(userId)
+        .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "User not found"));
+  }
+
+  private Goal resolveGoalForFeed(Long userId, Long goalId) {
+    if (goalId != null) {
+      return goalService.ownedGoal(userId, goalId);
+    }
+    return goalService.getGoals(userId).stream()
+        .findFirst()
+        .map(goalResponse -> goalService.ownedGoal(userId, goalResponse.id()))
+        .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Goal not found"));
+  }
+
+  private int normalizeLimit(Integer limit) {
+    if (limit == null) {
+      return DEFAULT_FEED_LIMIT;
+    }
+    return Math.max(1, Math.min(limit, 20));
+  }
+
+  private List<MotivationDtos.MotivationImageResponse> selectFeedImages(
+      Goal goal, Set<Long> excludedImageIds, int limit) {
+    return motivationImageRepository
+        .findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(detectTheme(goal).name())
+        .stream()
+        .filter(image -> !excludedImageIds.contains(image.getId()))
+        .filter(image -> image.getReportCount() < GLOBAL_REPORT_THRESHOLD)
+        .sorted(Comparator.comparing(MotivationImage::getCreatedAt).reversed())
+        .limit(limit)
+        .map(this::toFeedImageResponse)
+        .toList();
+  }
+
+  private void fillFeedIfNeeded(Goal goal, int limit) {
+    String theme = detectTheme(goal).name();
+    List<MotivationImage> existingImages =
+        motivationImageRepository.findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(theme);
+    if (existingImages.size() >= limit) {
+      return;
+    }
+
+    Set<String> existingSourceUrls =
+        existingImages.stream()
+            .map(MotivationImage::getSourceUrl)
+            .collect(Collectors.toCollection(HashSet::new));
+    for (ImageCandidate candidate : searchImageCandidates(goal, limit * 3)) {
+      if (existingSourceUrls.contains(candidate.sourceUrl())) {
+        continue;
+      }
+      MotivationImage image =
+          motivationImageRepository
+              .findTopBySourceUrlOrderByCreatedAtDesc(candidate.sourceUrl())
+              .orElseGet(
+                  () ->
+                      motivationImageRepository.save(
+                          MotivationImage.builder()
+                              .goal(goal)
+                              .imagePath(candidate.imageUrl())
+                              .sourceUrl(candidate.sourceUrl())
+                              .title(candidate.title())
+                              .description(candidate.description())
+                              .theme(theme)
+                              .prompt(candidate.query())
+                              .isFavorite(false)
+                              .generatedBy(MotivationImageSource.AUTO)
+                              .hiddenGlobally(false)
+                              .reportCount(0)
+                              .createdAt(OffsetDateTime.now())
+                              .build()));
+      existingSourceUrls.add(image.getSourceUrl());
+      if (existingSourceUrls.size() >= limit) {
+        break;
+      }
+    }
+  }
+
+  private List<ImageCandidate> searchImageCandidates(Goal goal, int limit) {
+    List<ImageCandidate> candidates = new ArrayList<>();
+    Set<String> uniqueSources = new LinkedHashSet<>();
+    for (String query : buildSearchQueries(goal)) {
+      if (candidates.size() >= limit) {
+        break;
+      }
+      try {
+        String response =
+            webImageWebClient
+                .get()
+                .uri(
+                    uriBuilder ->
+                        uriBuilder
+                            .path("/w/api.php")
+                            .queryParam("action", "query")
+                            .queryParam("format", "json")
+                            .queryParam("generator", "search")
+                            .queryParam("gsrnamespace", 6)
+                            .queryParam("gsrlimit", 20)
+                            .queryParam("gsrsearch", query)
+                            .queryParam("prop", "imageinfo")
+                            .queryParam("iiprop", "url")
+                            .build())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .bodyToMono(String.class)
+                .block();
+        if (response == null || response.isBlank()) {
+          continue;
+        }
+        JsonNode pages = OBJECT_MAPPER.readTree(response).path("query").path("pages");
+        if (!pages.isObject()) {
+          continue;
+        }
+        pages
+            .elements()
+            .forEachRemaining(
+                page -> {
+                  String imageUrl =
+                      Optional.ofNullable(
+                              page.path("imageinfo").isArray()
+                                  ? page.path("imageinfo").get(0)
+                                  : null)
+                          .map(node -> node.path("url").asText())
+                          .orElse("");
+                  String sourceUrl =
+                      Optional.ofNullable(
+                              page.path("imageinfo").isArray()
+                                  ? page.path("imageinfo").get(0)
+                                  : null)
+                          .map(node -> node.path("descriptionurl").asText(imageUrl))
+                          .orElse(imageUrl);
+                  if (imageUrl.isBlank() || sourceUrl.isBlank() || !uniqueSources.add(sourceUrl)) {
+                    return;
+                  }
+                  String title = formatCommonsTitle(page.path("title").asText("Motivation image"));
+                  String description = "Подобрано по теме цели: " + goal.getTitle();
+                  candidates.add(
+                      new ImageCandidate(imageUrl, sourceUrl, title, description, query));
+                });
+      } catch (Exception e) {
+        log.warn(
+            "Не удалось получить интернет-изображения по запросу '{}': {}", query, e.getMessage());
+      }
+    }
+    return candidates;
+  }
+
+  private List<String> buildSearchQueries(Goal goal) {
+    GoalTheme theme = detectTheme(goal);
+    List<String> themeTerms =
+        switch (theme) {
+          case SPORT -> SPORT_TERMS;
+          case STUDY -> STUDY_TERMS;
+          case CODE -> CODE_TERMS;
+          default -> GENERAL_TERMS;
+        };
+    List<String> keywords =
+        extractKeywords(
+            goal.getTitle() + " " + (goal.getDescription() == null ? "" : goal.getDescription()));
+    List<String> queries = new ArrayList<>();
+    if (!keywords.isEmpty()) {
+      queries.add(String.join(" ", keywords));
+      queries.add(String.join(" ", keywords) + " motivation");
+    }
+    queries.addAll(themeTerms);
+    if (queries.isEmpty()) {
+      queries.addAll(GENERAL_TERMS);
+    }
+    return queries;
+  }
+
+  private List<String> extractKeywords(String text) {
+    String normalized =
+        text.toLowerCase(Locale.ROOT)
+            .replaceAll("[^\\p{L}\\p{Nd}\\s]", " ")
+            .replaceAll("\\s+", " ")
+            .trim();
+    if (normalized.isBlank()) {
+      return List.of();
+    }
+    LinkedHashSet<String> result = new LinkedHashSet<>();
+    for (String token : normalized.split(" ")) {
+      if (token.length() < 4) {
+        continue;
+      }
+      result.add(token);
+      if (result.size() >= 5) {
+        break;
+      }
+    }
+    return List.copyOf(result);
+  }
+
+  private String formatCommonsTitle(String rawTitle) {
+    String title = rawTitle == null ? "Motivation image" : rawTitle;
+    title = title.replaceFirst("^File:", "");
+    title = title.replace('_', ' ');
+    return title.length() > 255 ? title.substring(0, 255) : title;
+  }
+
   private MotivationDtos.MotivationResponse saveImage(
       Goal goal, String styleOptions, MotivationImageSource source) {
-    AiDtos.ImageResult image =
+    var image =
         aiService.generateMotivationImage(
-            new AiDtos.GoalContext(goal.getId(), goal.getTitle(), goal.getDescription()),
+            new com.pomodoro.app.dto.AiDtos.GoalContext(
+                goal.getId(), goal.getTitle(), goal.getDescription()),
             styleOptions);
     MotivationImage saved =
         motivationImageRepository.save(
             MotivationImage.builder()
                 .goal(goal)
                 .imagePath(image.imagePath())
+                .sourceUrl(image.imagePath())
+                .title(goal.getTitle())
+                .description(goal.getDescription())
+                .theme(detectTheme(goal).name())
                 .prompt(image.usedPrompt())
                 .isFavorite(false)
                 .generatedBy(source)
+                .hiddenGlobally(false)
+                .reportCount(0)
                 .favoritedAt(null)
                 .createdAt(OffsetDateTime.now())
                 .build());
@@ -281,7 +594,9 @@ public class MotivationService {
             .findByIdAndGoalUserId(imageId, userId)
             .orElseThrow(() -> new AppException(HttpStatus.NOT_FOUND, "Image not found"));
     motivationImageRepository.delete(image);
-    storageService.deletePublicPath(image.getImagePath());
+    if (image.getImagePath().startsWith("/uploads/")) {
+      storageService.deletePublicPath(image.getImagePath());
+    }
   }
 
   private MotivationDtos.MotivationResponse toResponse(MotivationImage m, OffsetDateTime now) {
@@ -297,6 +612,17 @@ public class MotivationService {
         pinnedUntil,
         isPinned(m, now),
         m.getCreatedAt());
+  }
+
+  private MotivationDtos.MotivationImageResponse toFeedImageResponse(MotivationImage image) {
+    return new MotivationDtos.MotivationImageResponse(
+        image.getId(),
+        image.getImagePath(),
+        image.getSourceUrl(),
+        image.getTitle(),
+        image.getDescription(),
+        image.getTheme(),
+        image.getCreatedAt());
   }
 
   private MotivationDtos.DailyQuoteResponse toQuoteResponse(MotivationQuote quote) {
@@ -399,7 +725,7 @@ public class MotivationService {
   private GoalTheme detectTheme(Goal goal) {
     String text =
         (goal.getTitle() + " " + (goal.getDescription() == null ? " " : goal.getDescription()))
-            .toLowerCase();
+            .toLowerCase(Locale.ROOT);
     if (containsAny(text, SPORT_MARKERS)) {
       return GoalTheme.SPORT;
     }
@@ -438,4 +764,7 @@ public class MotivationService {
   }
 
   private record QuoteItem(String text, String textRu, String author) {}
+
+  private record ImageCandidate(
+      String imageUrl, String sourceUrl, String title, String description, String query) {}
 }

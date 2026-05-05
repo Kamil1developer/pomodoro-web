@@ -24,6 +24,18 @@ public class MotivationImage {
   @Column(nullable = false)
   private String imagePath;
 
+  @Column(nullable = false)
+  private String sourceUrl;
+
+  @Column(nullable = false)
+  private String title;
+
+  @Column(length = 3000)
+  private String description;
+
+  @Column(nullable = false, length = 64)
+  private String theme;
+
   @Column(nullable = false, length = 3000)
   private String prompt;
 
@@ -33,6 +45,12 @@ public class MotivationImage {
   @Enumerated(EnumType.STRING)
   @Column(nullable = false, length = 32)
   private MotivationImageSource generatedBy;
+
+  @Column(nullable = false)
+  private Boolean hiddenGlobally;
+
+  @Column(nullable = false)
+  private Integer reportCount;
 
   private OffsetDateTime favoritedAt;
 

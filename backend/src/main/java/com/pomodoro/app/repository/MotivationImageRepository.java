@@ -8,5 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface MotivationImageRepository extends JpaRepository<MotivationImage, Long> {
   List<MotivationImage> findByGoalIdOrderByCreatedAtDesc(Long goalId);
 
+  List<MotivationImage> findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(String theme);
+
+  Optional<MotivationImage> findTopBySourceUrlOrderByCreatedAtDesc(String sourceUrl);
+
   Optional<MotivationImage> findByIdAndGoalUserId(Long id, Long userId);
 }

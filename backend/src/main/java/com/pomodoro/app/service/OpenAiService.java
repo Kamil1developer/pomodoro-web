@@ -107,17 +107,27 @@ public class OpenAiService implements AiService {
     String base64 = Base64.getEncoder().encodeToString(imageBytes);
     String instruction =
         """
-                Вы проверяете фото-отчет по задачам на сегодня.
-                В goalContext.description может быть блок:
-                TODAY_TASKS_START
-                - задача 1
-                - задача 2
-                TODAY_TASKS_END
-                Нужно проверить, подтверждает ли фото + комментарий выполнение задач дня.
-                Если доказательств недостаточно, выбирайте NEEDS_MORE_INFO.
-                Если есть явное несоответствие задачам дня, выбирайте REJECTED.
-                Поле explanation пишите только на русском языке, кратко и по делу.
-                При REJECTED/NEEDS_MORE_INFO обязательно укажите, какие задачи не подтверждены и что исправить.
+                Вы проверяете фото-отчет по цели и задачам на сегодня.
+                В goalContext.description передаются:
+                - описание цели;
+                - блок TODAY_TASKS_START ... TODAY_TASKS_END;
+                - блок ACCEPTANCE_CRITERIA_START ... ACCEPTANCE_CRITERIA_END.
+
+                Проверяйте не просто наличие учебного контента, а доказательство выполнения задачи.
+
+                Правила:
+                1. Если задача явно про просмотр лекции, урока или видео, кадр с видео может быть подтверждением.
+                2. Если задача практическая: код, проект, конспект, упражнение, документ, тесты, лабораторная работа, одного видео или страницы YouTube недостаточно.
+                3. Если на фото виден только YouTube/видео, а задача практическая, выбирайте NEEDS_MORE_INFO.
+                4. Если фото не связано с целью или задачами, выбирайте REJECTED.
+                5. APPROVED допустим только когда видны признаки результата: IDE, код, конспект, документ, выполненное упражнение, тесты или другой артефакт работы.
+
+                Поле explanation пишите только на русском языке.
+                В explanation обязательно укажите:
+                - что именно видно на изображении;
+                - почему этого достаточно или недостаточно;
+                - что нужно добавить, если verdict = NEEDS_MORE_INFO.
+
                 Верните СТРОГО JSON по схеме:
                 {
                   "verdict": "APPROVED|REJECTED|NEEDS_MORE_INFO",
@@ -142,7 +152,7 @@ public class OpenAiService implements AiService {
                                 instruction
                                     + "\nGoal title: "
                                     + goalContext.title()
-                                    + "\nGoal description: "
+                                    + "\nGoal description and task context: "
                                     + goalContext.description()
                                     + "\nUser comment: "
                                     + (userComment == null ? "" : userComment)),
@@ -170,13 +180,14 @@ public class OpenAiService implements AiService {
       JsonNode parsed = objectMapper.readTree(content);
       AiVerdict verdict = AiVerdict.valueOf(parsed.path("verdict").asText("NEEDS_MORE_INFO"));
       double confidence = parsed.path("confidence").asDouble(0.5);
-      String explanation = parsed.path("explanation").asText("No explanation");
+      String explanation =
+          parsed.path("explanation").asText("AI не смог дать содержательное пояснение.");
       return new AiDtos.AnalyzeResult(verdict, confidence, explanation);
     } catch (Exception e) {
       return new AiDtos.AnalyzeResult(
           AiVerdict.NEEDS_MORE_INFO,
-          0.4,
-          "Не удалось корректно распознать ответ AI. Повторите запрос и добавьте более явное фото результата.");
+          0.35,
+          "AI не смог надёжно интерпретировать изображение. Добавьте более явный скриншот результата: код, конспект, документ или выполненное задание.");
     }
   }
 

@@ -39,6 +39,25 @@ public class MotivationController {
     return motivationService.refreshFeed(AuthUtil.currentUserId(), goalId);
   }
 
+  @GetMapping("/motivation/feed")
+  public MotivationDtos.MotivationFeedResponse getFeed(
+      @RequestParam(required = false) Long goalId, @RequestParam(required = false) Integer limit) {
+    return motivationService.getMotivationFeed(AuthUtil.currentUserId(), goalId, limit);
+  }
+
+  @PostMapping("/motivation/images/{imageId}/not-interested")
+  public MotivationDtos.FeedbackResponse markNotInterested(@PathVariable Long imageId) {
+    return motivationService.markImageNotInteresting(AuthUtil.currentUserId(), imageId);
+  }
+
+  @PostMapping("/motivation/images/{imageId}/report")
+  public MotivationDtos.FeedbackResponse reportImage(
+      @PathVariable Long imageId,
+      @RequestBody @Valid MotivationDtos.ReportMotivationImageRequest request) {
+    return motivationService.reportImage(
+        AuthUtil.currentUserId(), imageId, request.reason(), request.comment());
+  }
+
   @PatchMapping("/motivation/{imgId}/favorite")
   public MotivationDtos.MotivationResponse favorite(
       @PathVariable Long imgId, @RequestBody @Valid MotivationDtos.FavoriteRequest request) {

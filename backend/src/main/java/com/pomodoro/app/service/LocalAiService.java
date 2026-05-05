@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pomodoro.app.config.AppProperties;
 import com.pomodoro.app.dto.AiDtos;
-import com.pomodoro.app.enums.AiVerdict;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -109,62 +108,7 @@ public class LocalAiService implements AiService {
   @Override
   public AiDtos.AnalyzeResult analyzeReportImage(
       byte[] imageBytes, String userComment, AiDtos.GoalContext goalContext) {
-    List<String> todayTasks = extractTodayTasks(goalContext.description());
-    if (todayTasks.isEmpty()) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.NEEDS_MORE_INFO,
-          0.45,
-          "Локальный режим: не найден список задач дня. Добавьте задачи на сегодня и повторите проверку.");
-    }
-
-    String comment = normalize(userComment);
-    if (comment.isBlank()) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.NEEDS_MORE_INFO,
-          0.49,
-          "Локальный режим: добавьте комментарий, где указано какая задача дня выполнена и какой итог получен.");
-    }
-
-    List<String> matchedTasks = matchTasks(todayTasks, comment);
-    List<String> missingTasks =
-        todayTasks.stream().filter(task -> !matchedTasks.contains(task)).toList();
-    boolean hasCompletionMarker = containsAny(comment, COMPLETION_MARKERS);
-
-    if (matchedTasks.isEmpty()) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.REJECTED,
-          0.73,
-          "Локальный режим: в комментарии не найдено подтверждение задач дня. Ожидались задачи: "
-              + previewTasks(todayTasks)
-              + ".");
-    }
-
-    if (!hasCompletionMarker) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.NEEDS_MORE_INFO,
-          0.61,
-          "Локальный режим: найдены задачи ("
-              + previewTasks(matchedTasks)
-              + "), но нет явного признака завершения. Добавьте «выполнил/готово» и результат.");
-    }
-
-    if (!missingTasks.isEmpty()) {
-      return new AiDtos.AnalyzeResult(
-          AiVerdict.NEEDS_MORE_INFO,
-          0.64,
-          "Локальный режим: подтверждены не все задачи дня. Подтверждено: "
-              + previewTasks(matchedTasks)
-              + ". Не подтверждено: "
-              + previewTasks(missingTasks)
-              + ".");
-    }
-
-    return new AiDtos.AnalyzeResult(
-        AiVerdict.APPROVED,
-        0.82,
-        "Локальный режим: отчет подтверждает выполнение задач дня: "
-            + previewTasks(matchedTasks)
-            + ".");
+    return ReportEvidenceRules.evaluate(userComment, goalContext);
   }
 
   @Override

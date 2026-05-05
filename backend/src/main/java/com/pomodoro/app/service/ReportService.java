@@ -16,9 +16,6 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class ReportService {
-  private static final String TASK_BLOCK_START = "TODAY_TASKS_START";
-  private static final String TASK_BLOCK_END = "TODAY_TASKS_END";
-
   private final GoalService goalService;
   private final DailyTaskPolicyService dailyTaskPolicyService;
   private final ReportRepository reportRepository;
@@ -61,8 +58,15 @@ public class ReportService {
       result =
           new AiDtos.AnalyzeResult(
               AiVerdict.NEEDS_MORE_INFO,
-              0.3,
-              "Не удалось выполнить AI-проверку. Повторите попытку позже.");
+              0.25,
+              "AI-проверка сейчас недоступна. Отчет не подтвержден автоматически: добавьте более явное фото результата и попробуйте снова.");
+    }
+    if (result == null || result.verdict() == null) {
+      result =
+          new AiDtos.AnalyzeResult(
+              AiVerdict.NEEDS_MORE_INFO,
+              0.25,
+              "AI не вернул корректный результат проверки. Добавьте более явное доказательство выполнения задачи.");
     }
     ReportStatus status =
         switch (result.verdict()) {
@@ -117,7 +121,7 @@ public class ReportService {
     } else {
       builder.append("Цель: без описания\n");
     }
-    builder.append(TASK_BLOCK_START).append("\n");
+    builder.append(ReportEvidenceRules.TASK_BLOCK_START).append("\n");
     for (TaskItem task : todayTasks) {
       builder
           .append("- ")
@@ -125,7 +129,14 @@ public class ReportService {
           .append(task.getIsDone() ? " (статус: выполнено)" : " (статус: не выполнено)")
           .append("\n");
     }
-    builder.append(TASK_BLOCK_END);
+    builder.append(ReportEvidenceRules.TASK_BLOCK_END).append("\n");
+    builder.append(ReportEvidenceRules.ACCEPTANCE_BLOCK_START).append("\n");
+    builder.append(
+        "- Если задача про просмотр лекции или видео, экран с видео может быть достаточным доказательством.\n");
+    builder.append(
+        "- Если задача практическая, одного видео недостаточно: нужны признаки результата — код, конспект, документ, выполненное упражнение, тесты или другой артефакт.\n");
+    builder.append("- Если фото не связано с задачами на сегодня, отчет должен быть отклонен.\n");
+    builder.append(ReportEvidenceRules.ACCEPTANCE_BLOCK_END);
     return builder.toString();
   }
 }

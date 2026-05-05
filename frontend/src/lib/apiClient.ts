@@ -9,8 +9,10 @@ import {
   type GoalProgress,
   type GoalStats,
   type MotivationFeed,
+  type MotivationFeedResponse,
   type MotivationImage,
   type MotivationQuote,
+  type ReportMotivationImageRequest,
   type ReportItem,
   type TaskItem,
   type TodayStatus,
@@ -303,10 +305,37 @@ export const api = {
   getMotivationQuote(goalId: number) {
     return request<MotivationQuote>(`/goals/${goalId}/motivation/quote`);
   },
+  getMotivationFeed(goalId?: number, limit = 10) {
+    const params = new URLSearchParams();
+    if (goalId != null) {
+      params.set('goalId', String(goalId));
+    }
+    if (limit) {
+      params.set('limit', String(limit));
+    }
+    return request<MotivationFeedResponse>(`/motivation/feed?${params.toString()}`);
+  },
   refreshMotivationFeed(goalId: number) {
     return request<MotivationFeed>(`/goals/${goalId}/motivation/refresh-feed`, {
       method: 'POST'
     });
+  },
+  markMotivationImageNotInteresting(imageId: number) {
+    return request<{ imageId: number; status: string; message: string }>(
+      `/motivation/images/${imageId}/not-interested`,
+      {
+        method: 'POST'
+      }
+    );
+  },
+  reportMotivationImage(imageId: number, payload: ReportMotivationImageRequest) {
+    return request<{ imageId: number; status: string; message: string }>(
+      `/motivation/images/${imageId}/report`,
+      {
+        method: 'POST',
+        body: JSON.stringify(payload)
+      }
+    );
   },
   favoriteMotivation(imageId: number, isFavorite: boolean) {
     return request<MotivationImage>(`/motivation/${imageId}/favorite`, {
