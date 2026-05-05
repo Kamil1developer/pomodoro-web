@@ -330,7 +330,7 @@ export const api = {
   },
   markMotivationImageNotInteresting(imageId: number) {
     return request<{ imageId: number; status: string; message: string }>(
-      `/motivation/images/${imageId}/not-interested`,
+      `/motivation/cards/${imageId}/not-interested`,
       {
         method: 'POST'
       }
@@ -338,7 +338,7 @@ export const api = {
   },
   reportMotivationImage(imageId: number, payload: ReportMotivationImageRequest) {
     return request<{ imageId: number; status: string; message: string }>(
-      `/motivation/images/${imageId}/report`,
+      `/motivation/cards/${imageId}/report`,
       {
         method: 'POST',
         body: JSON.stringify(payload)

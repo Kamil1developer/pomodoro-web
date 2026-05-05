@@ -2,6 +2,10 @@ package com.pomodoro.app.enums;
 
 public enum MotivationImageReportReason {
   NSFW,
+  IRRELEVANT_TO_GOAL,
+  INAPPROPRIATE_IMAGE,
+  INAPPROPRIATE_TEXT,
+  REPEATS_TOO_OFTEN,
   INAPPROPRIATE,
   UNPLEASANT,
   OFFENSIVE,

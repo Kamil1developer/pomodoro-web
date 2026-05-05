@@ -5,6 +5,19 @@ Repository: `pomodoro-web`
 
 ## Commands executed
 
+### Motivation feed refresh + fallback verification
+```bash
+docker run --rm -v "$PWD/backend":/app -w /app maven:3.9.9-eclipse-temurin-21 mvn -q -Dtest=ReportMotivationIntegrationTest test
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm.log && npm run test:run'
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm.log && npm run lint'
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm.log && npm run build'
+```
+Result:
+- backend regression tests for motivation/report flows passed;
+- frontend `vitest`: 7 test files, 17 tests passed;
+- frontend `eslint .`: passed;
+- frontend `vite build`: passed.
+
 ### Frontend tests and production build
 ```bash
 docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm.log && npm run test:run && npm run build'
@@ -55,8 +68,10 @@ Result:
 ### Motivation feed
 - vertical feed UI renders one card section per scroll block
 - up to 10 cards are loaded
+- refresh button now triggers backend refresh and then re-fetches feed data for the selected goal
+- when external Wikimedia requests fail with `429 Too Many Requests`, backend falls back to locally generated SVG motivation cards instead of returning an empty feed
 - broken external image switches to safe fallback image
-- `Неинтересно` removes card from UI and uses backend feedback API
+- `Не интересует` removes card from UI and uses backend feedback API
 - `Пожаловаться` opens categories and removes card after submit
 - backend filters hidden / reported / globally hidden images
 

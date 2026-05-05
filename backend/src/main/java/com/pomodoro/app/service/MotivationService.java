@@ -158,6 +158,114 @@ public class MotivationService {
           "goal achievement consistency mindset",
           "productivity habit building personal growth");
 
+  private static final List<FallbackCardTemplate> SPORT_FALLBACK_CARDS =
+      List.of(
+          new FallbackCardTemplate(
+              "Собери инерцию",
+              "Даже короткая тренировка укрепляет ритм и не даёт цели рассыпаться.",
+              "Один подход сегодня важнее идеального плана на завтра."),
+          new FallbackCardTemplate(
+              "Дисциплина в движении",
+              "Регулярность создаёт тело и уверенность быстрее, чем редкие рывки.",
+              "Сделай маленький спортивный шаг и зафиксируй результат."),
+          new FallbackCardTemplate(
+              "Не жди идеального момента",
+              "Фокус на процессе помогает вернуться в темп, даже если мотивации мало.",
+              "20 минут движения уже работают на цель."),
+          new FallbackCardTemplate(
+              "Сильный темп",
+              "Серия держится на простом правиле: не пропускай два дня подряд.",
+              "Сохрани streak одной короткой сессией."),
+          new FallbackCardTemplate(
+              "Работай на привычку",
+              "Тело любит повторение. Повторение любит ясный следующий шаг.",
+              "Начни с разминки и дойди до видимого результата."),
+          new FallbackCardTemplate(
+              "Финиш важнее старта",
+              "День засчитывается, когда есть и работа, и доказательство результата.",
+              "После тренировки не забудь фото-отчёт."));
+
+  private static final List<FallbackCardTemplate> STUDY_FALLBACK_CARDS =
+      List.of(
+          new FallbackCardTemplate(
+              "Учёба любит ритм",
+              "Короткая сессия с понятной задачей почти всегда лучше ожидания вдохновения.",
+              "Открой материал и сделай один законченный шаг."),
+          new FallbackCardTemplate(
+              "Понимание растёт слоями",
+              "Каждый конспект, упражнение и повторение делает цель ближе.",
+              "Закрой одну учебную задачу сегодня и закрепи её отчётом."),
+          new FallbackCardTemplate(
+              "Глубина через регулярность",
+              "Не пытайся осилить всё сразу. Двигайся кусками, но каждый день.",
+              "Ещё одна Pomodoro-сессия сегодня сохранит темп."),
+          new FallbackCardTemplate(
+              "Сначала маленький результат",
+              "Одна страница конспекта или один выполненный блок уже меняют день.",
+              "Сделай небольшой, но доказуемый прогресс."),
+          new FallbackCardTemplate(
+              "Фокус важнее шума",
+              "Не оценивай день по настроению. Оцени по завершённому шагу.",
+              "Выбери самую понятную учебную задачу и закрой её."),
+          new FallbackCardTemplate(
+              "Знание любит доказательства",
+              "Если задача практическая, нужен видимый результат: конспект, решение или документ.",
+              "Подготовь фото-отчёт так, чтобы был виден итог."));
+
+  private static final List<FallbackCardTemplate> CODE_FALLBACK_CARDS =
+      List.of(
+          new FallbackCardTemplate(
+              "Код появляется из маленьких шагов",
+              "Не жди большого прорыва. Напиши один метод, поправь один баг, проверь один сценарий.",
+              "Сделай один технический результат и зафиксируй его."),
+          new FallbackCardTemplate(
+              "Практика сильнее просмотра",
+              "Видео и статьи помогают, но цель движется вперёд, когда появляется работающий артефакт.",
+              "Открой IDE и доведи одну часть до результата."),
+          new FallbackCardTemplate(
+              "Доводи до доказательства",
+              "Код, тесты, структура проекта или документ — всё это лучше абстрактного «я занимался».",
+              "После сессии подготовь фото с видимым результатом."),
+          new FallbackCardTemplate(
+              "Один коммит мышления",
+              "Разработка любит ясную границу: что именно будет завершено за ближайшие 25 минут.",
+              "Сформулируй один маленький deliverable и закрой его."),
+          new FallbackCardTemplate(
+              "Темп важнее идеальности",
+              "Не пытайся сразу сделать идеально. Сделай работающий шаг и улучши потом.",
+              "Сегодня достаточно одного законченного блока по проекту."),
+          new FallbackCardTemplate(
+              "Техническая дисциплина",
+              "Когда внимание расползается, возвращайся к самому понятному следующему действию.",
+              "Запусти короткую фокус-сессию и заверши один конкретный кусок работы."));
+
+  private static final List<FallbackCardTemplate> GENERAL_FALLBACK_CARDS =
+      List.of(
+          new FallbackCardTemplate(
+              "Двигай цель каждый день",
+              "Большая цель складывается из маленьких повторяемых действий.",
+              "Сделай ещё один короткий шаг сегодня."),
+          new FallbackCardTemplate(
+              "Темп важнее настроения",
+              "Не нужно ждать идеального состояния, чтобы сделать полезный шаг.",
+              "Запусти одну Pomodoro-сессию и посмотри, что изменится."),
+          new FallbackCardTemplate(
+              "Сохрани серию",
+              "Даже короткая работа сегодня поддерживает дисциплину и streak.",
+              "Закрой минимальный, но реальный прогресс."),
+          new FallbackCardTemplate(
+              "Прогресс любит доказательства",
+              "Когда результат виден, его проще признать и продолжить дальше.",
+              "После работы не забудь подтвердить её отчётом."),
+          new FallbackCardTemplate(
+              "Следующий шаг важнее тревоги",
+              "Если неясно, что делать, выбери самое маленькое полезное действие.",
+              "Один завершённый шаг уже меняет день."),
+          new FallbackCardTemplate(
+              "Личное обязательство работает",
+              "Дневная норма существует не для давления, а для устойчивого движения.",
+              "Вернись к цели и закрой хотя бы часть нормы."));
+
   private final GoalService goalService;
   private final MotivationImageRepository motivationImageRepository;
   private final MotivationImageFeedbackRepository motivationImageFeedbackRepository;
@@ -235,16 +343,7 @@ public class MotivationService {
 
   public MotivationDtos.FeedRefreshResponse refreshFeed(Long userId, Long goalId) {
     Goal goal = goalService.ownedGoal(userId, goalId);
-    for (String style : pickFeedStyles(goal)) {
-      try {
-        saveImage(goal, style, MotivationImageSource.AUTO);
-      } catch (Exception e) {
-        log.warn(
-            "Не удалось обновить мотивационную картинку для цели {}: {}",
-            goal.getId(),
-            e.getMessage());
-      }
-    }
+    ensureFeedCards(goal, DEFAULT_FEED_LIMIT);
     return new MotivationDtos.FeedRefreshResponse(
         listByGoal(goal, OffsetDateTime.now()), pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE));
   }
@@ -258,11 +357,11 @@ public class MotivationService {
         motivationImageFeedbackRepository.findByUserId(userId).stream()
             .map(feedback -> feedback.getImage().getId())
             .collect(Collectors.toSet());
-    fillFeedIfNeeded(goal, normalizedLimit + excludedImageIds.size());
+    ensureFeedCards(goal, normalizedLimit + excludedImageIds.size());
     List<MotivationDtos.MotivationImageResponse> images =
         selectFeedImages(goal, excludedImageIds, normalizedLimit);
     if (images.size() < normalizedLimit) {
-      fillFeedIfNeeded(goal, normalizedLimit + excludedImageIds.size() + 6);
+      ensureFeedCards(goal, normalizedLimit + excludedImageIds.size() + 6);
       images = selectFeedImages(goal, excludedImageIds, normalizedLimit);
     }
 
@@ -289,7 +388,7 @@ public class MotivationService {
     if (motivationImageFeedbackRepository.existsByUserIdAndImageIdAndType(
         userId, imageId, MotivationImageFeedbackType.NOT_INTERESTED)) {
       return new MotivationDtos.FeedbackResponse(
-          imageId, "OK", "Больше не будем показывать это изображение");
+          imageId, "OK", "Больше не будем показывать эту карточку");
     }
 
     motivationImageFeedbackRepository.save(
@@ -300,7 +399,7 @@ public class MotivationService {
             .createdAt(OffsetDateTime.now())
             .build());
     return new MotivationDtos.FeedbackResponse(
-        imageId, "OK", "Больше не будем показывать это изображение");
+        imageId, "OK", "Больше не будем показывать эту карточку");
   }
 
   public MotivationDtos.FeedbackResponse reportImage(
@@ -330,7 +429,8 @@ public class MotivationService {
       image.setHiddenGlobally(true);
     }
     motivationImageRepository.save(image);
-    return new MotivationDtos.FeedbackResponse(imageId, "OK", "Спасибо, мы учтём вашу жалобу");
+    return new MotivationDtos.FeedbackResponse(
+        imageId, "OK", "Жалоба отправлена. Мы больше не будем показывать эту карточку.");
   }
 
   private User loadUser(Long userId) {
@@ -370,13 +470,10 @@ public class MotivationService {
         .toList();
   }
 
-  private void fillFeedIfNeeded(Goal goal, int limit) {
+  private void ensureFeedCards(Goal goal, int limit) {
     String theme = detectTheme(goal).name();
     List<MotivationImage> existingImages =
         motivationImageRepository.findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(theme);
-    if (existingImages.size() >= limit) {
-      return;
-    }
 
     Set<String> existingSourceUrls =
         existingImages.stream()
@@ -408,8 +505,42 @@ public class MotivationService {
                               .build()));
       existingSourceUrls.add(image.getSourceUrl());
       if (existingSourceUrls.size() >= limit) {
-        break;
+        return;
       }
+    }
+
+    List<FallbackCardTemplate> templates = fallbackTemplates(goal);
+    int variant = 0;
+    while (existingSourceUrls.size() < limit && variant < Math.max(limit * 2, templates.size())) {
+      FallbackCardTemplate template = templates.get(variant % templates.size());
+      String sourceUrl =
+          "fallback://"
+              + detectTheme(goal).name().toLowerCase(Locale.ROOT)
+              + "/"
+              + template.slug()
+              + "-"
+              + variant;
+      variant++;
+      if (!existingSourceUrls.add(sourceUrl)) {
+        continue;
+      }
+
+      String imagePath = createFallbackImage(goal, template);
+      motivationImageRepository.save(
+          MotivationImage.builder()
+              .goal(goal)
+              .imagePath(imagePath)
+              .sourceUrl(sourceUrl)
+              .title(template.title())
+              .description(template.description())
+              .theme(theme)
+              .prompt(template.caption())
+              .isFavorite(false)
+              .generatedBy(MotivationImageSource.AUTO)
+              .hiddenGlobally(false)
+              .reportCount(0)
+              .createdAt(OffsetDateTime.now())
+              .build());
     }
   }
 
@@ -714,6 +845,77 @@ public class MotivationService {
     };
   }
 
+  private List<FallbackCardTemplate> fallbackTemplates(Goal goal) {
+    return switch (detectTheme(goal)) {
+      case SPORT -> SPORT_FALLBACK_CARDS;
+      case CODE -> CODE_FALLBACK_CARDS;
+      case STUDY -> STUDY_FALLBACK_CARDS;
+      default -> GENERAL_FALLBACK_CARDS;
+    };
+  }
+
+  private String createFallbackImage(Goal goal, FallbackCardTemplate template) {
+    String background = goal.getThemeColor() == null || goal.getThemeColor().isBlank() ? "#dff6e5" : goal.getThemeColor();
+    String accent = darkenColor(background, 0.58);
+    String svg =
+        """
+        <svg xmlns='http://www.w3.org/2000/svg' width='900' height='1400' viewBox='0 0 900 1400'>
+          <defs>
+            <linearGradient id='bg' x1='0' y1='0' x2='1' y2='1'>
+              <stop offset='0%%' stop-color='%s' />
+              <stop offset='100%%' stop-color='#f6ecdf' />
+            </linearGradient>
+          </defs>
+          <rect width='100%%' height='100%%' rx='48' fill='url(#bg)' />
+          <circle cx='720' cy='250' r='170' fill='#ffffff44' />
+          <circle cx='180' cy='1160' r='190' fill='#ffffff2f' />
+          <text x='72' y='180' fill='%s' font-size='42' font-family='Arial, sans-serif' font-weight='700'>Pomodoro Web</text>
+          <text x='72' y='300' fill='%s' font-size='58' font-family='Arial, sans-serif' font-weight='700'>%s</text>
+          <foreignObject x='72' y='380' width='756' height='560'>
+            <div xmlns='http://www.w3.org/1999/xhtml' style='font-family:Arial,sans-serif;color:%s;font-size:30px;line-height:1.45;'>
+              %s
+            </div>
+          </foreignObject>
+          <foreignObject x='72' y='1010' width='756' height='220'>
+            <div xmlns='http://www.w3.org/1999/xhtml' style='font-family:Arial,sans-serif;color:%s;font-size:24px;line-height:1.45;'>
+              %s
+            </div>
+          </foreignObject>
+        </svg>
+        """
+            .formatted(
+                escapeXml(background),
+                escapeXml(accent),
+                escapeXml(accent),
+                escapeXml(template.title()),
+                escapeXml(accent),
+                escapeXml(template.description()),
+                escapeXml(accent),
+                escapeXml(template.caption()));
+    return storageService.storeBytes(svg.getBytes(java.nio.charset.StandardCharsets.UTF_8), "motivation", "svg");
+  }
+
+  private String darkenColor(String hex, double factor) {
+    String normalized = hex == null ? "" : hex.trim();
+    if (!normalized.matches("^#[0-9A-Fa-f]{6}$")) {
+      return "#173b35";
+    }
+    int value = Integer.parseInt(normalized.substring(1), 16);
+    int r = (int) (((value >> 16) & 0xff) * factor);
+    int g = (int) (((value >> 8) & 0xff) * factor);
+    int b = (int) ((value & 0xff) * factor);
+    return "#%02x%02x%02x".formatted(r, g, b);
+  }
+
+  private String escapeXml(String value) {
+    return value
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace("\"", "&quot;")
+        .replace("'", "&apos;");
+  }
+
   private MotivationDtos.DailyQuoteResponse toQuoteResponse(MotivationQuote quote) {
     return new MotivationDtos.DailyQuoteResponse(
         quote.getId(),
@@ -856,4 +1058,10 @@ public class MotivationService {
 
   private record ImageCandidate(
       String imageUrl, String sourceUrl, String title, String description, String query) {}
+
+  private record FallbackCardTemplate(String title, String description, String caption) {
+    private String slug() {
+      return title.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{Nd}]+", "-");
+    }
+  }
 }

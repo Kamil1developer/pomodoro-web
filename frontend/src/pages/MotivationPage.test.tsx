@@ -6,6 +6,7 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getMotivationFeed: vi.fn(),
     getGoalExperience: vi.fn(),
+    refreshMotivationFeed: vi.fn(),
     markMotivationImageNotInteresting: vi.fn(),
     reportMotivationImage: vi.fn()
   }
@@ -108,15 +109,16 @@ describe('MotivationPage', () => {
     vi.clearAllMocks();
     apiMock.getMotivationFeed.mockResolvedValue(baseFeed);
     apiMock.getGoalExperience.mockResolvedValue(baseExperience);
+    apiMock.refreshMotivationFeed.mockResolvedValue(baseFeed);
     apiMock.markMotivationImageNotInteresting.mockResolvedValue({
       imageId: 1,
       status: 'OK',
-      message: 'Больше не будем показывать это изображение'
+      message: 'Больше не будем показывать эту карточку'
     });
     apiMock.reportMotivationImage.mockResolvedValue({
       imageId: 2,
       status: 'OK',
-      message: 'Спасибо, мы учтём вашу жалобу'
+      message: 'Жалоба отправлена. Мы больше не будем показывать эту карточку.'
     });
   });
 
@@ -127,11 +129,11 @@ describe('MotivationPage', () => {
     expect(screen.getAllByTestId('motivation-card')).toHaveLength(10);
   });
 
-  it('clicking Неинтересно removes card', async () => {
+  it('clicking Не интересует removes card', async () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
-    fireEvent.click(screen.getAllByText('Неинтересно')[0]);
+    fireEvent.click(screen.getAllByText('Не интересует')[0]);
 
     await waitFor(() => {
       expect(screen.queryByText('Image 1')).not.toBeInTheDocument();
@@ -145,7 +147,7 @@ describe('MotivationPage', () => {
     fireEvent.click(screen.getAllByText('Пожаловаться')[0]);
 
     expect(screen.getByText('Почему вы жалуетесь?')).toBeTruthy();
-    expect(screen.getByText('Нецензурно / NSFW')).toBeTruthy();
+    expect(screen.getByText('Не относится к моей цели')).toBeTruthy();
   });
 
   it('submit report removes card', async () => {

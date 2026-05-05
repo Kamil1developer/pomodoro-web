@@ -50,12 +50,25 @@ public class MotivationController {
     return motivationService.markImageNotInteresting(AuthUtil.currentUserId(), imageId);
   }
 
+  @PostMapping("/motivation/cards/{cardId}/not-interested")
+  public MotivationDtos.FeedbackResponse markCardNotInterested(@PathVariable Long cardId) {
+    return motivationService.markImageNotInteresting(AuthUtil.currentUserId(), cardId);
+  }
+
   @PostMapping("/motivation/images/{imageId}/report")
   public MotivationDtos.FeedbackResponse reportImage(
       @PathVariable Long imageId,
       @RequestBody @Valid MotivationDtos.ReportMotivationImageRequest request) {
     return motivationService.reportImage(
         AuthUtil.currentUserId(), imageId, request.reason(), request.comment());
+  }
+
+  @PostMapping("/motivation/cards/{cardId}/report")
+  public MotivationDtos.FeedbackResponse reportCard(
+      @PathVariable Long cardId,
+      @RequestBody @Valid MotivationDtos.ReportMotivationImageRequest request) {
+    return motivationService.reportImage(
+        AuthUtil.currentUserId(), cardId, request.reason(), request.comment());
   }
 
   @PatchMapping("/motivation/{imgId}/favorite")

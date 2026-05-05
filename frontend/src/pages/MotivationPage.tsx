@@ -9,11 +9,12 @@ import type {
 } from '../types/api';
 
 const REPORT_REASON_OPTIONS: Array<{ value: MotivationImageReportReason; label: string }> = [
+  { value: 'IRRELEVANT_TO_GOAL', label: 'Не относится к моей цели' },
+  { value: 'INAPPROPRIATE_IMAGE', label: 'Неподходящее изображение' },
+  { value: 'INAPPROPRIATE_TEXT', label: 'Неподходящий текст' },
+  { value: 'REPEATS_TOO_OFTEN', label: 'Повторяется слишком часто' },
   { value: 'NSFW', label: 'Нецензурно / NSFW' },
-  { value: 'IRRELEVANT', label: 'Не по теме' },
   { value: 'LOW_QUALITY', label: 'Низкое качество' },
-  { value: 'DUPLICATE', label: 'Дубликат' },
-  { value: 'UNPLEASANT', label: 'Неприятный / нежелательный контент' },
   { value: 'BROKEN_IMAGE', label: 'Ошибка загрузки / битое изображение' },
   { value: 'OTHER', label: 'Другое' }
 ];
@@ -153,7 +154,7 @@ function MotivationCard({
         </div>
         <div className="inline-actions motivation-reel-actions">
           <button className="btn btn-ghost" type="button" onClick={onNotInterested} disabled={disabled}>
-            Неинтересно
+            Не интересует
           </button>
           <button className="btn btn-ghost" type="button" onClick={onReport} disabled={disabled}>
             Пожаловаться
@@ -172,7 +173,7 @@ export function MotivationPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [workingImageId, setWorkingImageId] = useState<number | null>(null);
   const [reportingImage, setReportingImage] = useState<MotivationImageItem | null>(null);
-  const [reportReason, setReportReason] = useState<MotivationImageReportReason>('IRRELEVANT');
+  const [reportReason, setReportReason] = useState<MotivationImageReportReason>('IRRELEVANT_TO_GOAL');
   const [reportComment, setReportComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -192,6 +193,14 @@ export function MotivationPage() {
       }
       setError(null);
       try {
+        if (showRefreshState) {
+          try {
+            await api.refreshMotivationFeed(selectedGoal.id);
+          } catch (refreshError) {
+            setError('Не удалось обновить ленту. Используем стандартные мотивационные карточки.');
+            console.warn(refreshError);
+          }
+        }
         const [feedData, experienceData] = await Promise.all([
           api.getMotivationFeed(selectedGoal.id, 10),
           api.getGoalExperience(selectedGoal.id)
@@ -262,7 +271,7 @@ export function MotivationPage() {
 
   function openReport(image: MotivationImageItem) {
     setReportingImage(image);
-    setReportReason('IRRELEVANT');
+    setReportReason('IRRELEVANT_TO_GOAL');
     setReportComment('');
     setSuccessMessage(null);
   }
@@ -290,7 +299,9 @@ export function MotivationPage() {
         reason: reportReason,
         comment: reportComment.trim() || undefined
       });
-      setSuccessMessage(response.message || 'Спасибо, мы учтём вашу жалобу');
+      setSuccessMessage(
+        response.message || 'Жалоба отправлена. Мы больше не будем показывать эту карточку.'
+      );
       setReportingImage(null);
       await loadPageData(false);
     } catch (err) {
@@ -335,7 +346,7 @@ export function MotivationPage() {
             <p className="muted">Цель: {selectedGoal.title}</p>
           </div>
           <button className="btn" onClick={() => void loadPageData(true)} disabled={refreshing}>
-            {refreshing ? 'Обновление...' : 'Обновить ленту'}
+            {refreshing ? 'Обновляем ленту...' : 'Обновить ленту'}
           </button>
         </div>
         <div className="metric-grid compact-grid">

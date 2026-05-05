@@ -7,6 +7,10 @@ export type GoalStatus = 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'ARCHIVED';
 export type MotivationImageFeedbackType = 'NOT_INTERESTED' | 'REPORTED';
 export type MotivationImageReportReason =
   | 'NSFW'
+  | 'IRRELEVANT_TO_GOAL'
+  | 'INAPPROPRIATE_IMAGE'
+  | 'INAPPROPRIATE_TEXT'
+  | 'REPEATS_TOO_OFTEN'
   | 'INAPPROPRIATE'
   | 'UNPLEASANT'
   | 'OFFENSIVE'

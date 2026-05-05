@@ -27,6 +27,28 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
   @Autowired private MotivationImageFeedbackRepository motivationImageFeedbackRepository;
 
   @Test
+  void refreshFeedShouldCreateFallbackCardsWhenExternalSourceIsEmptyOrUnavailable() throws Exception {
+    Tokens tokens = registerUser("mot-refresh@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Выучить английский");
+
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/motivation/refresh-feed", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.images.length()").value(org.hamcrest.Matchers.greaterThan(0)));
+
+    mockMvc
+        .perform(
+            get("/api/motivation/feed")
+                .param("goalId", goalId.toString())
+                .param("limit", "10")
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.images.length()").value(org.hamcrest.Matchers.greaterThan(0)));
+  }
+
+  @Test
   void motivationFeedShouldReturnUpToTenImagesIfAvailable() throws Exception {
     Tokens tokens = registerUser("mot-feed@test.dev", "password123");
     Long goalId = createGoal(tokens.accessToken(), "Sport goal");
@@ -56,7 +78,7 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
 
     mockMvc
         .perform(
-            post("/api/motivation/images/{imageId}/not-interested", image.getId())
+            post("/api/motivation/cards/{imageId}/not-interested", image.getId())
                 .header("Authorization", bearer(owner.accessToken())))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("OK"));
@@ -111,7 +133,7 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
 
     mockMvc
         .perform(
-            post("/api/motivation/images/{imageId}/report", image.getId())
+            post("/api/motivation/cards/{imageId}/report", image.getId())
                 .header("Authorization", bearer(owner.accessToken()))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
@@ -122,7 +144,9 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
                     }
                     """))
         .andExpect(status().isOk())
-        .andExpect(jsonPath("$.message").value("Спасибо, мы учтём вашу жалобу"));
+        .andExpect(
+            jsonPath("$.message")
+                .value("Жалоба отправлена. Мы больше не будем показывать эту карточку."));
 
     mockMvc
         .perform(
