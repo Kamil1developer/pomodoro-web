@@ -18,8 +18,13 @@ public class StorageService {
   public StorageService(AppProperties appProperties) throws IOException {
     this.root = Path.of(appProperties.uploadsDir()).toAbsolutePath().normalize();
     Files.createDirectories(root);
+    Files.createDirectories(root.resolve("avatars"));
     Files.createDirectories(root.resolve("reports"));
     Files.createDirectories(root.resolve("motivation"));
+  }
+
+  public String storeAvatar(MultipartFile file) {
+    return store(file, "avatars");
   }
 
   public String storeReport(MultipartFile file) {

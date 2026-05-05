@@ -25,7 +25,11 @@ vi.mock('../lib/useAppShellContext', () => ({
       targetHours: 50,
       deadline: null,
       themeColor: '#dff6e5',
+      status: 'ACTIVE',
       currentStreak: 0,
+      completedAt: null,
+      closedAt: null,
+      failureReason: null,
       createdAt: '2026-01-01T00:00:00Z'
     }
   })
@@ -35,10 +39,10 @@ const baseFeed = {
   images: Array.from({ length: 10 }, (_, index) => ({
     id: index + 1,
     imageUrl: `https://example.com/${index + 1}.jpg`,
-    sourceUrl: `https://source.example.com/${index + 1}`,
     title: `Image ${index + 1}`,
     description: 'Подобрано по теме цели',
-    theme: 'CODE',
+    caption: 'Делай маленький шаг и двигайся дальше.',
+    goalReason: 'Карточка подобрана под активную цель.',
     createdAt: '2026-01-01T00:00:00Z'
   })),
   quote: {
@@ -60,7 +64,11 @@ const baseExperience = {
     targetHours: 50,
     deadline: null,
     themeColor: '#dff6e5',
+    status: 'ACTIVE',
     currentStreak: 0,
+    completedAt: null,
+    closedAt: null,
+    failureReason: null,
     createdAt: '2026-01-01T00:00:00Z'
   },
   commitment: null,
@@ -112,11 +120,11 @@ describe('MotivationPage', () => {
     });
   });
 
-  it('renders motivation image grid', async () => {
+  it('renders vertical motivation feed', async () => {
     render(<MotivationPage />);
 
-    expect(await screen.findByTestId('motivation-grid')).toBeTruthy();
-    expect(screen.getAllByRole('img')).toHaveLength(10);
+    expect(await screen.findByTestId('motivation-feed')).toBeTruthy();
+    expect(screen.getAllByTestId('motivation-card')).toHaveLength(10);
   });
 
   it('clicking Неинтересно removes card', async () => {
@@ -130,14 +138,14 @@ describe('MotivationPage', () => {
     });
   });
 
-  it('report form opens', async () => {
+  it('report form opens with categories', async () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
     fireEvent.click(screen.getAllByText('Пожаловаться')[0]);
 
     expect(screen.getByText('Почему вы жалуетесь?')).toBeTruthy();
-    expect(screen.getByText('Отправить жалобу')).toBeTruthy();
+    expect(screen.getByText('Нецензурно / NSFW')).toBeTruthy();
   });
 
   it('submit report removes card', async () => {
@@ -149,6 +157,18 @@ describe('MotivationPage', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('Image 1')).not.toBeInTheDocument();
+    });
+  });
+
+  it('broken image switches to fallback source', async () => {
+    render(<MotivationPage />);
+
+    const images = await screen.findAllByAltText('Мотивационная иллюстрация');
+    const image = images[0];
+    fireEvent.error(image);
+
+    await waitFor(() => {
+      expect((image as HTMLImageElement).src).toContain('data:image/svg+xml');
     });
   });
 

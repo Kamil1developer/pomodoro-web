@@ -13,4 +13,6 @@ public interface FocusSessionRepository extends JpaRepository<FocusSession, Long
 
   List<FocusSession> findByGoalIdAndStartedAtBetween(
       Long goalId, OffsetDateTime start, OffsetDateTime end);
+
+  List<FocusSession> findByGoalUserIdOrderByStartedAtDesc(Long userId);
 }

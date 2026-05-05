@@ -16,7 +16,11 @@ describe('GoalSelector', () => {
             targetHours: null,
             deadline: null,
             themeColor: '#dff6e5',
+            status: 'ACTIVE',
             currentStreak: 0,
+            completedAt: null,
+            closedAt: null,
+            failureReason: null,
             createdAt: '2026-01-01T00:00:00Z'
           },
           {
@@ -26,7 +30,11 @@ describe('GoalSelector', () => {
             targetHours: null,
             deadline: null,
             themeColor: '#d4e9ff',
+            status: 'ACTIVE',
             currentStreak: 0,
+            completedAt: null,
+            closedAt: null,
+            failureReason: null,
             createdAt: '2026-01-01T00:00:00Z'
           }
         ]}

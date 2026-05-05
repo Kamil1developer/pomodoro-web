@@ -38,10 +38,10 @@ public class MotivationDtos {
   public record MotivationImageResponse(
       Long id,
       String imageUrl,
-      String sourceUrl,
       String title,
       String description,
-      String theme,
+      String caption,
+      String goalReason,
       OffsetDateTime createdAt) {}
 
   public record MotivationFeedResponse(

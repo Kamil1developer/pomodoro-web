@@ -1,5 +1,6 @@
 package com.pomodoro.app.dto;
 
+import com.pomodoro.app.enums.GoalStatus;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -30,8 +31,14 @@ public class GoalDtos {
       BigDecimal targetHours,
       LocalDate deadline,
       String themeColor,
+      GoalStatus status,
       Integer currentStreak,
+      OffsetDateTime completedAt,
+      OffsetDateTime closedAt,
+      String failureReason,
       OffsetDateTime createdAt) {}
+
+  public record GoalCloseFailedRequest(@NotBlank @Size(max = 3000) String reason) {}
 
   public record TaskCreateRequest(@NotBlank @Size(max = 255) String title) {}
 

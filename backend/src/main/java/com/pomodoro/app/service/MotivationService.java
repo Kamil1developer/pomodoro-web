@@ -363,9 +363,10 @@ public class MotivationService {
         .stream()
         .filter(image -> !excludedImageIds.contains(image.getId()))
         .filter(image -> image.getReportCount() < GLOBAL_REPORT_THRESHOLD)
+        .filter(image -> isDisplayableImageUrl(image.getImagePath()))
         .sorted(Comparator.comparing(MotivationImage::getCreatedAt).reversed())
         .limit(limit)
-        .map(this::toFeedImageResponse)
+        .map(image -> toFeedImageResponse(goal, image))
         .toList();
   }
 
@@ -465,11 +466,14 @@ public class MotivationService {
                                   : null)
                           .map(node -> node.path("descriptionurl").asText(imageUrl))
                           .orElse(imageUrl);
-                  if (imageUrl.isBlank() || sourceUrl.isBlank() || !uniqueSources.add(sourceUrl)) {
+                  if (imageUrl.isBlank()
+                      || sourceUrl.isBlank()
+                      || !isDisplayableImageUrl(imageUrl)
+                      || !uniqueSources.add(sourceUrl)) {
                     return;
                   }
-                  String title = formatCommonsTitle(page.path("title").asText("Motivation image"));
-                  String description = "Подобрано по теме цели: " + goal.getTitle();
+                  String title = sanitizeFeedTitle(formatCommonsTitle(page.path("title").asText("Motivation image")), goal);
+                  String description = sanitizeFeedDescription(page.path("title").asText(""), goal);
                   candidates.add(
                       new ImageCandidate(imageUrl, sourceUrl, title, description, query));
                 });
@@ -531,6 +535,7 @@ public class MotivationService {
     String title = rawTitle == null ? "Motivation image" : rawTitle;
     title = title.replaceFirst("^File:", "");
     title = title.replace('_', ' ');
+    title = title.replaceAll("\\.[A-Za-z0-9]{2,5}$", "");
     return title.length() > 255 ? title.substring(0, 255) : title;
   }
 
@@ -614,15 +619,99 @@ public class MotivationService {
         m.getCreatedAt());
   }
 
-  private MotivationDtos.MotivationImageResponse toFeedImageResponse(MotivationImage image) {
+  private MotivationDtos.MotivationImageResponse toFeedImageResponse(Goal goal, MotivationImage image) {
     return new MotivationDtos.MotivationImageResponse(
         image.getId(),
         image.getImagePath(),
-        image.getSourceUrl(),
-        image.getTitle(),
-        image.getDescription(),
-        image.getTheme(),
+        sanitizeFeedTitle(image.getTitle(), goal),
+        sanitizeFeedDescription(image.getDescription(), goal),
+        buildCaption(goal, image),
+        buildGoalReason(goal, image),
         image.getCreatedAt());
+  }
+
+  private boolean isDisplayableImageUrl(String imageUrl) {
+    if (imageUrl == null || imageUrl.isBlank()) {
+      return false;
+    }
+    String normalized = imageUrl.toLowerCase(Locale.ROOT);
+    if (normalized.startsWith("/uploads/")) {
+      return true;
+    }
+    if (!(normalized.startsWith("http://") || normalized.startsWith("https://"))) {
+      return false;
+    }
+    if (normalized.contains(".pdf")
+        || normalized.contains(".html")
+        || normalized.contains(".htm")
+        || normalized.contains("wikimedia.org/wiki/")
+        || normalized.contains("commons.wikimedia.org/wiki/")) {
+      return false;
+    }
+    return normalized.matches(".*\\.(jpg|jpeg|png|webp|gif)(\\?.*)?$");
+  }
+
+  private String sanitizeFeedTitle(String rawTitle, Goal goal) {
+    String title = rawTitle == null ? "" : rawTitle.trim();
+    if (title.isBlank() || looksTechnicalText(title)) {
+      if (goal.getTitle() == null || goal.getTitle().isBlank()) {
+        return "Визуальная мотивация";
+      }
+      return "Мотивация для цели";
+    }
+    if (title.length() > 80) {
+      title = title.substring(0, 80).trim();
+    }
+    return title;
+  }
+
+  private String sanitizeFeedDescription(String rawDescription, Goal goal) {
+    String text = rawDescription == null ? "" : rawDescription.trim();
+    if (text.isBlank() || looksTechnicalText(text)) {
+      return "Продолжай движение к цели: " + goal.getTitle();
+    }
+    if (text.length() > 180) {
+      text = text.substring(0, 180).trim() + "…";
+    }
+    return text;
+  }
+
+  private boolean looksTechnicalText(String value) {
+    String normalized = value.toLowerCase(Locale.ROOT).trim();
+    if (normalized.isBlank()) {
+      return true;
+    }
+    return normalized.startsWith("file:")
+        || normalized.startsWith("http://")
+        || normalized.startsWith("https://")
+        || normalized.contains(".pdf")
+        || normalized.contains(".svg")
+        || normalized.contains(".jpg")
+        || normalized.contains(".jpeg")
+        || normalized.contains(".png")
+        || normalized.contains("wikimedia")
+        || normalized.contains("commons")
+        || normalized.matches(".*[\\\\/_].*")
+        || normalized.matches("^[a-z0-9\\-_.]{18,}$");
+  }
+
+  private String buildCaption(Goal goal, MotivationImage image) {
+    String goalTitle = goal.getTitle() == null || goal.getTitle().isBlank() ? "вашей цели" : goal.getTitle();
+    String description = image.getDescription();
+    if (description != null && !looksTechnicalText(description) && !description.isBlank()) {
+      return description;
+    }
+    return "Каждая Pomodoro-сессия приближает тебя к цели: " + goalTitle + ".";
+  }
+
+  private String buildGoalReason(Goal goal, MotivationImage image) {
+    String theme = image.getTheme() == null ? "GENERAL" : image.getTheme();
+    return switch (theme) {
+      case "SPORT" -> "Подобрано под спортивную цель и визуально поддерживает ритм тренировок.";
+      case "CODE" -> "Подобрано под техническую цель: помогает удерживать внимание на практике и результате.";
+      case "STUDY" -> "Подобрано под учебную цель: поддерживает фокус на регулярном обучении.";
+      default -> "Подобрано по активной цели и её описанию, чтобы поддержать сегодняшний темп.";
+    };
   }
 
   private MotivationDtos.DailyQuoteResponse toQuoteResponse(MotivationQuote quote) {

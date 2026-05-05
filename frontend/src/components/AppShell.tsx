@@ -158,6 +158,7 @@ export function AppShell() {
           <NavLink to="/motivation">Мотивация</NavLink>
           <NavLink to="/chat">Мотиватор</NavLink>
           <NavLink to="/stats">Статистика</NavLink>
+          <NavLink to="/profile">Профиль</NavLink>
         </nav>
 
         <button className="btn btn-ghost" onClick={() => void logout()}>

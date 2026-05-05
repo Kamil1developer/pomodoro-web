@@ -16,6 +16,12 @@ export function ChatPage() {
   const [clearing, setClearing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const quickPrompts = [
+    'Что мне сделать сегодня?',
+    'Почему я отстаю?',
+    'Как не сорвать streak?',
+    'Составь план на вечер.'
+  ];
 
   useEffect(() => {
     if (!selectedGoal) {
@@ -158,11 +164,24 @@ export function ChatPage() {
           ) : null}
         </div>
 
+        <div className="chips">
+          {quickPrompts.map((prompt) => (
+            <button
+              key={prompt}
+              className="chip chip-button"
+              type="button"
+              onClick={() => setContent(prompt)}
+              disabled={sending || clearing}>
+              {prompt}
+            </button>
+          ))}
+        </div>
+
         <form className="inline-fields" onSubmit={sendMessage}>
           <input
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder="Например: как добить дневную норму и не сорвать streak?"
+            placeholder="Например: что мне сделать сегодня, почему я отстаю или как не сорвать streak?"
             disabled={clearing}
           />
           <button className="btn" type="submit" disabled={sending || clearing || !content.trim()}>

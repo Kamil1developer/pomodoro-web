@@ -3,6 +3,7 @@ package com.pomodoro.app.service;
 import com.pomodoro.app.dto.AiDtos;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -23,21 +24,86 @@ public class MockAiService implements AiService {
 
   @Override
   public String chat(List<AiDtos.ChatInputMessage> messages, AiDtos.GoalContext goalContext) {
-    String last = messages.isEmpty() ? "" : messages.get(messages.size() - 1).content();
-    String fullName =
+    String systemPrompt =
         messages.stream()
-            .filter(m -> "system".equalsIgnoreCase(m.role()))
+            .filter(message -> "system".equalsIgnoreCase(message.role()))
             .map(AiDtos.ChatInputMessage::content)
-            .map(this::extractFullName)
-            .filter(name -> !name.isBlank())
             .findFirst()
-            .orElse("пользователь");
-    return "План на следующий шаг для цели '"
+            .orElse("");
+    String userText =
+        messages.stream()
+            .filter(message -> "user".equalsIgnoreCase(message.role()))
+            .reduce((left, right) -> right)
+            .map(AiDtos.ChatInputMessage::content)
+            .orElse("")
+            .toLowerCase(Locale.ROOT);
+
+    String remaining = extractValue(systemPrompt, "remainingMinutesToday:");
+    String streak = extractValue(systemPrompt, "currentStreak:");
+    String discipline = extractValue(systemPrompt, "disciplineScore:");
+    String risk = extractValue(systemPrompt, "riskStatus:");
+    String reportStatus = extractValue(systemPrompt, "reportStatusToday:");
+    String nextAction = extractValue(systemPrompt, "nextRecommendedAction:");
+    String fullName = extractValue(systemPrompt, "fullName:");
+    String greeting = fullName.isBlank() ? "Смотрите" : fullName + ", смотрите";
+
+    if (containsAny(userText, "что мне сделать сегодня", "план", "вечер")) {
+      return greeting
+          + ": сегодня у вас осталось "
+          + safeValue(remaining, "немного")
+          + " до дневной нормы."
+          + "\n1. Следующий шаг: одна короткая фокус-сессия на 20–25 минут."
+          + "\n2. Потом закройте одну конкретную задачу по цели «"
+          + goalContext.title()
+          + "»."
+          + "\n3. В конце отправьте фото-отчёт с результатом, а не только с процессом.";
+    }
+
+    if (containsAny(userText, "почему я отстаю", "отстаю", "не успеваю", "прокраст")) {
+      return greeting
+          + ": похоже, темп сбился не потому, что вы ленивы, а потому что вход в задачу стал слишком тяжёлым."
+          + "\nСейчас важнее не догонять весь план, а сделать один маленький доказуемый шаг."
+          + "\nНачните с 15 минут по самой простой части цели, затем вернитесь к шагу: "
+          + safeValue(nextAction, "сделайте короткую фокус-сессию и зафиксируйте результат")
+          + ".";
+    }
+
+    if (containsAny(userText, "мотивац", "как начать", "не хочу", "нет сил")) {
+      return greeting
+          + ": мотивация обычно приходит после действия, а не до него."
+          + "\nНе требуйте от себя большого рывка: откройте задачу по цели «"
+          + goalContext.title()
+          + "», поработайте 10–15 минут и остановитесь только после маленького результата."
+          + "\nСерия сейчас: "
+          + safeValue(streak, "0")
+          + " дн., дисциплина: "
+          + safeValue(discipline, "не рассчитана")
+          + ". Даже короткая сессия сегодня удержит темп.";
+    }
+
+    if ("HIGH".equalsIgnoreCase(risk)) {
+      return greeting
+          + ": цель сейчас в зоне риска, поэтому давить на себя сильнее не нужно."
+          + "\nСнизьте ожидание на сегодня до одного короткого блока, затем проверьте отчёт и только после этого решайте, нужен ли второй заход."
+          + "\nОриентир: "
+          + safeValue(nextAction, "сделайте маленький шаг и закрепите его отчётом")
+          + ".";
+    }
+
+    if (reportStatus == null || reportStatus.isBlank() || "null".equalsIgnoreCase(reportStatus)) {
+      return greeting
+          + ": по цели уже есть движение, но день не будет засчитан без подтверждения результата."
+          + "\nПосле следующего шага подготовьте фото-отчёт так, чтобы на нём был виден именно результат: код, конспект, документ, выполненное упражнение или другая практическая часть.";
+    }
+
+    return greeting
+        + ": у вас уже есть опора для движения по цели «"
         + goalContext.title()
-        + "' для "
-        + fullName
-        + ": 1) 25 минут фокуса 2) закрыть 1 задачу 3) отправить отчет с конкретным результатом. Вопрос: "
-        + last;
+        + "»."
+        + "\nСледующий шаг: "
+        + safeValue(nextAction, "одна короткая Pomodoro-сессия")
+        + "."
+        + "\nЕсли после неё останутся силы, добавьте ещё один маленький результат и сразу зафиксируйте его отчётом.";
   }
 
   @Override
@@ -63,12 +129,16 @@ public class MockAiService implements AiService {
     return new AiDtos.ImageResult(path, prompt);
   }
 
-  private String escape(String text) {
-    return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+  private boolean containsAny(String text, String... needles) {
+    for (String needle : needles) {
+      if (text.contains(needle)) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  private String extractFullName(String systemPrompt) {
-    String marker = "fullName:";
+  private String extractValue(String systemPrompt, String marker) {
     int index = systemPrompt.indexOf(marker);
     if (index < 0) {
       return "";
@@ -76,5 +146,13 @@ public class MockAiService implements AiService {
     String tail = systemPrompt.substring(index + marker.length()).trim();
     int lineBreak = tail.indexOf('\n');
     return (lineBreak >= 0 ? tail.substring(0, lineBreak) : tail).trim();
+  }
+
+  private String safeValue(String value, String fallback) {
+    return value == null || value.isBlank() || "null".equalsIgnoreCase(value) ? fallback : value;
+  }
+
+  private String escape(String text) {
+    return text == null ? "" : text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
   }
 }

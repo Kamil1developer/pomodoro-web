@@ -12,6 +12,8 @@ import {
   type MotivationFeedResponse,
   type MotivationImage,
   type MotivationQuote,
+  type ProfileGoalsResponse,
+  type ProfileResponse,
   type ReportMotivationImageRequest,
   type ReportItem,
   type TaskItem,
@@ -209,6 +211,12 @@ export const api = {
       method: 'DELETE'
     });
   },
+  closeFailedGoal(id: number, reason: string) {
+    return request<Goal>(`/goals/${id}/close-failed`, {
+      method: 'POST',
+      body: JSON.stringify({ reason })
+    });
+  },
   getTasks(goalId: number) {
     return request<TaskItem[]>(`/goals/${goalId}/tasks`);
   },
@@ -361,5 +369,25 @@ export const api = {
     return request<ChatHistory>(`/goals/${goalId}/chat/history`, {
       method: 'DELETE'
     });
+  },
+  getProfile() {
+    return request<ProfileResponse>('/profile');
+  },
+  updateProfile(payload: { fullName?: string }) {
+    return request<ProfileResponse>('/profile', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  uploadAvatar(file: File) {
+    const form = new FormData();
+    form.append('file', file);
+    return request<ProfileResponse>('/profile/avatar', {
+      method: 'POST',
+      body: form
+    });
+  },
+  getProfileGoals() {
+    return request<ProfileGoalsResponse>('/profile/goals');
   }
 };

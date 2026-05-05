@@ -7,6 +7,7 @@ import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.GoalCommitment;
 import com.pomodoro.app.entity.Report;
+import com.pomodoro.app.enums.GoalStatus;
 import com.pomodoro.app.enums.CommitmentStatus;
 import com.pomodoro.app.enums.GoalEventType;
 import com.pomodoro.app.enums.ReportStatus;
@@ -152,7 +153,7 @@ public class GoalCommitmentService {
 
   @Transactional(readOnly = true)
   public List<GoalExperienceDtos.GoalExperienceResponse> getDashboardExperience(Long userId) {
-    return goalRepository.findByUserIdOrderByCreatedAtDesc(userId).stream()
+    return goalRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE).stream()
         .map(goal -> getGoalExperience(userId, goal.getId()))
         .toList();
   }
@@ -343,8 +344,12 @@ public class GoalCommitmentService {
                 eventTimestamp);
           }
           commitment.setStatus(CommitmentStatus.COMPLETED);
+          goalService.markCompleted(goal, rewardDescription(commitment));
         } else {
           commitment.setStatus(CommitmentStatus.FAILED);
+          goalService.markFailed(
+              goal,
+              "Обязательство завершилось без нужного количества подтверждённых дней или с высоким риском.");
         }
       }
 
@@ -540,7 +545,11 @@ public class GoalCommitmentService {
         goal.getTargetHours(),
         goal.getDeadline(),
         goal.getThemeColor(),
+        goal.getStatus(),
         goal.getCurrentStreak(),
+        goal.getCompletedAt(),
+        goal.getClosedAt(),
+        goal.getFailureReason(),
         goal.getCreatedAt());
   }
 

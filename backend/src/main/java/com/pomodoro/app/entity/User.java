@@ -30,6 +30,8 @@ public class User {
   @Column(nullable = false)
   private Role role;
 
+  private String avatarPath;
+
   @Column(nullable = false)
   private OffsetDateTime createdAt;
 }

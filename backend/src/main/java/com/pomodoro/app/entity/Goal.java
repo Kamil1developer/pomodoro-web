@@ -1,5 +1,6 @@
 package com.pomodoro.app.entity;
 
+import com.pomodoro.app.enums.GoalStatus;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -37,6 +38,17 @@ public class Goal {
 
   @Column(nullable = false, length = 16)
   private String themeColor;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 32)
+  private GoalStatus status;
+
+  private OffsetDateTime completedAt;
+
+  private OffsetDateTime closedAt;
+
+  @Column(length = 3000)
+  private String failureReason;
 
   @Column(nullable = false)
   private OffsetDateTime createdAt;

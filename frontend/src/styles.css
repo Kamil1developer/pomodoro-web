@@ -328,6 +328,10 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   font-size: 0.83rem;
 }
 
+.chip-button {
+  cursor: pointer;
+}
+
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(90px, 1fr));
@@ -544,43 +548,98 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   justify-items: center;
 }
 
-.motivation-grid {
-  margin-top: 1rem;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+.motivation-page-layout {
   gap: 1rem;
 }
 
-.motivation-grid-card {
-  background: var(--surface-strong);
-  border: 1px solid #e8ece1;
-  border-radius: 16px;
-  overflow: hidden;
-  box-shadow: 0 6px 18px #29403f12;
+.motivation-summary-card {
   display: grid;
+  gap: 0.9rem;
 }
 
-.motivation-grid-image {
+.motivation-reels-shell {
+  min-height: 0;
+}
+
+.motivation-reels {
+  height: calc(100vh - 220px);
+  min-height: 580px;
+  overflow-y: auto;
+  scroll-snap-type: y mandatory;
+  display: grid;
+  gap: 1rem;
+  padding-right: 0.25rem;
+}
+
+.motivation-reel-section {
+  scroll-snap-align: start;
+  min-height: 82vh;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
+.motivation-reel-card {
+  width: min(100%, 620px);
+  min-height: 82vh;
+  background: var(--surface-strong);
+  border: 1px solid #e8ece1;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 10px 28px #29403f16;
+  display: flex;
+  flex-direction: column;
+}
+
+.motivation-reel-image-frame {
+  flex: 1 1 auto;
+  min-height: 58vh;
+  background: linear-gradient(160deg, #eff7f0 0%, #f3ebdf 100%);
+}
+
+.motivation-reel-image {
   width: 100%;
-  aspect-ratio: 4 / 5;
+  height: 100%;
+  min-height: 58vh;
   object-fit: cover;
   display: block;
   background: #eef2eb;
 }
 
-.motivation-grid-body {
-  padding: 0.85rem;
+.motivation-reel-body {
+  padding: 1rem 1rem 1.15rem;
   display: grid;
-  gap: 0.45rem;
+  gap: 0.9rem;
 }
 
-.motivation-grid-body p {
+.motivation-reel-copy {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.motivation-reel-kicker {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--primary-strong);
+  font-weight: 800;
+}
+
+.motivation-reel-quote {
+  margin: 0;
+  font-size: 1.18rem;
+  line-height: 1.5;
+  font-weight: 700;
+}
+
+.motivation-reel-description,
+.motivation-reel-reason {
   margin: 0;
   color: var(--ink-soft);
-  min-height: 2.7rem;
+  line-height: 1.55;
 }
 
-.motivation-card-actions {
+.motivation-reel-actions {
   justify-content: space-between;
 }
 
@@ -596,6 +655,12 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   border: 1px solid #d6ead7;
   background: #eefaf0;
   color: #1d5b35;
+}
+
+.success-card {
+  color: #1d5b35;
+  background: #eefaf0;
+  border-color: #d6ead7;
 }
 
 .motivation-post {
@@ -875,6 +940,96 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   margin: 0;
 }
 
+.profile-header-card,
+.profile-goal-card,
+.profile-history-card {
+  background: var(--surface);
+}
+
+.profile-header-main {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.profile-avatar-wrap {
+  flex: 0 0 auto;
+}
+
+.profile-avatar {
+  width: 112px;
+  height: 112px;
+  border-radius: 28px;
+  object-fit: cover;
+  border: 1px solid #d7e3d4;
+  background: #eef2eb;
+  display: block;
+}
+
+.profile-avatar-fallback {
+  display: grid;
+  place-items: center;
+  font-size: 2rem;
+  font-weight: 800;
+  color: var(--primary-strong);
+  background: linear-gradient(140deg, var(--goal-color-soft, #eef9f1) 0%, #fff 100%);
+}
+
+.profile-header-copy {
+  display: grid;
+  gap: 0.6rem;
+  width: 100%;
+}
+
+.profile-inline-fields {
+  align-items: center;
+}
+
+.profile-avatar-upload {
+  width: fit-content;
+}
+
+.profile-goal-list,
+.profile-history-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.profile-goal-card,
+.profile-history-card {
+  border: 1px solid #e7ede1;
+  border-radius: 16px;
+  padding: 1rem;
+  display: grid;
+  gap: 0.7rem;
+}
+
+.profile-history-failed {
+  border-color: #f2cfbe;
+  background: #fff8f5;
+}
+
+.loser-badge {
+  border-radius: 999px;
+  padding: 0.35rem 0.7rem;
+  background: #fff1eb;
+  color: #9b3e2d;
+  border: 1px solid #efc1b0;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.failure-reason-box {
+  border-radius: 12px;
+  padding: 0.75rem 0.85rem;
+  background: #fff;
+  border: 1px solid #efd8cc;
+}
+
+.failure-reason-box p {
+  margin: 0.35rem 0 0;
+}
+
 .focus-hero-card {
   display: grid;
   gap: 0.9rem;
@@ -929,5 +1084,27 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   .report-preview {
     width: 100%;
     height: 220px;
+  }
+
+  .motivation-reels {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    scroll-snap-type: none;
+  }
+
+  .motivation-reel-section,
+  .motivation-reel-card {
+    min-height: auto;
+  }
+
+  .motivation-reel-image,
+  .motivation-reel-image-frame {
+    min-height: 360px;
+  }
+
+  .profile-header-main {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }

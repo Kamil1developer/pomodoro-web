@@ -3,12 +3,17 @@ export type AiVerdict = 'APPROVED' | 'REJECTED' | 'NEEDS_MORE_INFO';
 export type ChatRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
 export type CommitmentStatus = 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'FAILED';
 export type RiskStatus = 'LOW' | 'MEDIUM' | 'HIGH';
+export type GoalStatus = 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'ARCHIVED';
 export type MotivationImageFeedbackType = 'NOT_INTERESTED' | 'REPORTED';
 export type MotivationImageReportReason =
+  | 'NSFW'
   | 'INAPPROPRIATE'
+  | 'UNPLEASANT'
   | 'OFFENSIVE'
   | 'LOW_QUALITY'
   | 'IRRELEVANT'
+  | 'DUPLICATE'
+  | 'BROKEN_IMAGE'
   | 'SPAM'
   | 'OTHER';
 export type GoalEventType =
@@ -42,7 +47,11 @@ export interface Goal {
   targetHours: number | null;
   deadline: string | null;
   themeColor: string;
+  status: GoalStatus;
   currentStreak: number;
+  completedAt: string | null;
+  closedAt: string | null;
+  failureReason: string | null;
   createdAt: string;
 }
 
@@ -167,10 +176,10 @@ export interface MotivationImage {
 export interface MotivationImageItem {
   id: number;
   imageUrl: string;
-  sourceUrl: string;
   title: string;
   description: string | null;
-  theme: string;
+  caption: string | null;
+  goalReason: string | null;
   createdAt: string;
 }
 
@@ -197,6 +206,55 @@ export interface MotivationFeedResponse {
 export interface ReportMotivationImageRequest {
   reason: MotivationImageReportReason;
   comment?: string;
+}
+
+export interface ProfileStats {
+  activeGoalsCount: number;
+  completedGoalsCount: number;
+  failedGoalsCount: number;
+  totalFocusMinutes: number;
+  bestStreak: number;
+  averageDiscipline: number | null;
+  riskSummary: RiskStatus | null;
+}
+
+export interface ProfileActiveGoalItem {
+  goalId: number;
+  title: string;
+  status: GoalStatus;
+  currentStreak: number;
+  dailyTargetMinutes: number | null;
+  completedFocusMinutesToday: number;
+  remainingMinutesToday: number | null;
+  disciplineScore: number | null;
+  riskStatus: RiskStatus | null;
+  createdAt: string;
+}
+
+export interface ProfileGoalHistoryItem {
+  goalId: number;
+  title: string;
+  status: GoalStatus;
+  failureReason: string | null;
+  createdAt: string;
+  completedAt: string | null;
+  closedAt: string | null;
+  loserBadge: boolean;
+}
+
+export interface ProfileResponse {
+  userId: number;
+  email: string;
+  fullName: string;
+  avatarPath: string | null;
+  stats: ProfileStats;
+  activeGoals: ProfileActiveGoalItem[];
+  goalHistory: ProfileGoalHistoryItem[];
+}
+
+export interface ProfileGoalsResponse {
+  activeGoals: ProfileActiveGoalItem[];
+  history: ProfileGoalHistoryItem[];
 }
 
 export interface ChatMessage {

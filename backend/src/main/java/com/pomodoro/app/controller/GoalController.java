@@ -42,6 +42,12 @@ public class GoalController {
     goalService.deleteGoal(AuthUtil.currentUserId(), id);
   }
 
+  @PostMapping("/goals/{id}/close-failed")
+  public GoalDtos.GoalResponse closeFailedGoal(
+      @PathVariable Long id, @RequestBody @Valid GoalDtos.GoalCloseFailedRequest request) {
+    return goalService.closeFailedGoal(AuthUtil.currentUserId(), id, request.reason());
+  }
+
   @GetMapping("/goals/{id}/tasks")
   public List<GoalDtos.TaskResponse> getTasks(@PathVariable Long id) {
     return goalService.getTasks(AuthUtil.currentUserId(), id);

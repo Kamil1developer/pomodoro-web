@@ -48,6 +48,8 @@ export function ControlPage() {
   const [createGoalThemeColor, setCreateGoalThemeColor] = useState('#dff6e5');
   const [commitmentForm, setCommitmentForm] = useState<CommitmentFormState>(defaultCommitmentForm());
   const [experience, setExperience] = useState<GoalExperience | null>(null);
+  const [closingFailed, setClosingFailed] = useState(false);
+  const [failureReason, setFailureReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const createColorStyle = { '--picker-color': createGoalThemeColor } as CSSProperties;
@@ -145,16 +147,22 @@ export function ControlPage() {
     }
   }
 
-  async function handleDeleteGoal() {
+  async function handleCloseFailedGoal() {
     if (!selectedGoal) {
+      return;
+    }
+    if (!failureReason.trim()) {
+      setError('Укажите причину, почему цель не выполнена.');
       return;
     }
 
     try {
-      await api.deleteGoal(selectedGoal.id);
+      await api.closeFailedGoal(selectedGoal.id, failureReason.trim());
       await reloadGoals();
       const nextId = goals.filter((goal) => goal.id !== selectedGoal.id)[0]?.id ?? null;
       setSelectedGoalId(nextId);
+      setClosingFailed(false);
+      setFailureReason('');
     } catch (err) {
       setError((err as Error).message);
     }
@@ -258,8 +266,8 @@ export function ControlPage() {
                 <button className="btn" type="button" onClick={() => void handleUpdateGoal()}>
                   Сохранить цель
                 </button>
-                <button className="btn btn-danger" type="button" onClick={() => void handleDeleteGoal()}>
-                  Удалить
+                <button className="btn btn-danger" type="button" onClick={() => setClosingFailed(true)}>
+                  Закрыть как невыполненную
                 </button>
               </div>
             </div>
@@ -372,6 +380,34 @@ export function ControlPage() {
 
       {loading ? <section className="card">Обновление данных...</section> : null}
       {error ? <section className="card error-card">{error}</section> : null}
+      {closingFailed && selectedGoal ? (
+        <section className="card report-modal" role="dialog" aria-modal="true">
+          <h3>Почему цель не выполнена?</h3>
+          <p className="muted">
+            Цель «{selectedGoal.title}» попадёт в историю профиля как невыполненная и больше не пропадёт бесследно.
+          </p>
+          <textarea
+            rows={4}
+            value={failureReason}
+            onChange={(event) => setFailureReason(event.target.value)}
+            placeholder="Например: не хватило времени, потерял интерес, сменился приоритет"
+          />
+          <div className="inline-actions">
+            <button className="btn btn-danger" type="button" onClick={() => void handleCloseFailedGoal()}>
+              Закрыть цель
+            </button>
+            <button
+              className="btn btn-ghost"
+              type="button"
+              onClick={() => {
+                setClosingFailed(false);
+                setFailureReason('');
+              }}>
+              Отмена
+            </button>
+          </div>
+        </section>
+      ) : null}
       {selectedGoalId === null ? <section className="card">Выберите цель для управления её параметрами.</section> : null}
     </div>
   );
