@@ -46,7 +46,19 @@ const FALLBACK_QUOTES = [
   'Сделай первый шаг сейчас, а уверенность догонит тебя по дороге.',
   'Каждая завершённая сессия доказывает, что цель ближе, чем кажется.',
   'Не нужно делать идеально. Нужно сделать достаточно, чтобы продолжить завтра.',
-  'Фокус на ближайшие 25 минут важнее тревоги о всём пути.'
+  'Фокус на ближайшие 25 минут важнее тревоги о всём пути.',
+  'Сегодня не нужно побеждать весь путь. Достаточно честно пройти следующий отрезок.',
+  'Если цель кажется большой, уменьши шаг, но не останавливай движение.',
+  'Твоя привычка растёт каждый раз, когда ты возвращаешься к делу.',
+  'Сначала действие, потом настроение. Так строится устойчивый темп.',
+  'Одна законченная сессия лучше десяти отложенных обещаний.',
+  'Сохрани внимание на ближайшей задаче, и прогресс станет видимым.',
+  'Ты не обязан делать много. Ты обязан не исчезать из процесса.',
+  'Стабильность выигрывает у мотивации, когда приходит обычный трудный день.',
+  'Каждый отчёт — это доказательство, что цель живёт не только в голове.',
+  'Сделай короткую сессию сейчас, чтобы вечером не догонять самого себя.',
+  'Не сравнивай темп с чужим. Сравни сегодняшний шаг со вчерашней паузой.',
+  'Хороший день для цели начинается с маленького выполненного обещания.'
 ];
 
 function sanitizeMotivationTitle(title: string | null | undefined): string {
@@ -61,16 +73,17 @@ function pickMotivationQuote(
   image: MotivationImageItem,
   quoteText: string | null | undefined,
   goalTitle: string,
-  goalDescription: string | null | undefined
+  goalDescription: string | null | undefined,
+  quoteIndex: number
 ): string {
-  const candidates = [quoteText, image.caption, image.description, image.title];
+  const candidates = [quoteIndex === 0 ? quoteText : null];
   for (const candidate of candidates) {
     const value = cleanMotivationText(candidate, goalTitle, goalDescription);
     if (value) {
       return value;
     }
   }
-  return FALLBACK_QUOTES[Math.abs(image.id) % FALLBACK_QUOTES.length];
+  return FALLBACK_QUOTES[Math.abs(image.id + quoteIndex) % FALLBACK_QUOTES.length];
 }
 
 function cleanMotivationText(
@@ -168,6 +181,7 @@ function MotivationCard({
   quoteText,
   goalTitle,
   goalDescription,
+  quoteIndex,
   onNotInterested,
   onReport,
   disabled
@@ -176,13 +190,14 @@ function MotivationCard({
   quoteText?: string | null;
   goalTitle: string;
   goalDescription?: string | null;
+  quoteIndex: number;
   onNotInterested: () => void;
   onReport: () => void;
   disabled: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
   const title = cleanMotivationText(image.title, goalTitle, goalDescription) ?? sanitizeMotivationTitle(null);
-  const quote = pickMotivationQuote(image, quoteText, goalTitle, goalDescription);
+  const quote = pickMotivationQuote(image, quoteText, goalTitle, goalDescription, quoteIndex);
   const finalImage = imageFailed ? FALLBACK_IMAGE : resolveAssetUrl(image.imageUrl);
 
   return (
@@ -459,13 +474,14 @@ export function MotivationPage() {
       {images.length > 0 ? (
         <section className="motivation-reels-shell">
           <div className="motivation-reels" ref={scrollRef} data-testid="motivation-feed">
-            {images.map((image) => (
+            {images.map((image, index) => (
               <div key={image.id} className="motivation-reel-section">
                 <MotivationCard
                   image={image}
                   quoteText={quote?.quoteTextRu || quote?.quoteText}
                   goalTitle={selectedGoal.title}
                   goalDescription={selectedGoal.description}
+                  quoteIndex={index}
                   onNotInterested={() => void handleNotInterested(image.id)}
                   onReport={() => openReport(image)}
                   disabled={workingImageId === image.id}
