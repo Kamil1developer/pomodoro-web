@@ -241,6 +241,7 @@ export function MotivationPage() {
   const [reportComment, setReportComment] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [summaryCollapsed, setSummaryCollapsed] = useState(false);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const hiddenImageIdsRef = useRef<Set<number>>(new Set());
 
@@ -415,51 +416,63 @@ export function MotivationPage() {
   }
 
   return (
-    <div className="page-grid motivation-page-layout">
+    <div className={`page-grid motivation-page-layout ${summaryCollapsed ? 'motivation-summary-collapsed' : ''}`}>
       <section className="card motivation-summary-card">
         <div className="card-header">
           <div>
             <h3>Мотивационная лента</h3>
-            <p className="muted">Цель: {selectedGoal.title}</p>
+            <p className="muted">
+              Цель: {selectedGoal.title}
+              {summaryCollapsed ? ` · ${stats.remainingMinutes} мин. до нормы · ${stats.walletBalance} монет` : ''}
+            </p>
           </div>
-          <button className="btn" onClick={() => void loadPageData(true)} disabled={refreshing}>
-            {refreshing ? 'Обновляем ленту...' : 'Обновить ленту'}
-          </button>
-        </div>
-        <div className="metric-grid compact-grid">
-          <div className="metric-card">
-            <span>Серия</span>
-            <strong>{stats.streak} дн.</strong>
-          </div>
-          <div className="metric-card">
-            <span>Дисциплина</span>
-            <strong>{stats.discipline}/100</strong>
-          </div>
-          <div className="metric-card">
-            <span>Риск</span>
-            <strong>{formatRisk(stats.risk)}</strong>
-          </div>
-          <div className="metric-card">
-            <span>Осталось сегодня</span>
-            <strong>{stats.remainingMinutes} мин.</strong>
-          </div>
-          <div className="metric-card">
-            <span>Баланс</span>
-            <strong>{stats.walletBalance} монет</strong>
-          </div>
-          <div className="metric-card">
-            <span>Штраф за пропуск</span>
-            <strong>{stats.moneyEnabled ? `${stats.penalty} монет` : 'выключен'}</strong>
+          <div className="inline-actions motivation-summary-actions">
+            <button className="btn btn-ghost" type="button" onClick={() => setSummaryCollapsed((value) => !value)}>
+              {summaryCollapsed ? 'Показать сводку' : 'Свернуть сводку'}
+            </button>
+            <button className="btn" onClick={() => void loadPageData(true)} disabled={refreshing}>
+              {refreshing ? 'Обновляем...' : 'Обновить ленту'}
+            </button>
           </div>
         </div>
-        <div className="recommendation-box">
-          <strong>Рекомендация</strong>
-          <p>
-            {feed?.recommendation ??
-              experience?.aiRecommendation ??
-              `Сделай ещё одну короткую сессию сегодня, чтобы сохранить темп.`}
-          </p>
-        </div>
+        {!summaryCollapsed ? (
+          <>
+            <div className="metric-grid compact-grid motivation-summary-details">
+              <div className="metric-card">
+                <span>Серия</span>
+                <strong>{stats.streak} дн.</strong>
+              </div>
+              <div className="metric-card">
+                <span>Дисциплина</span>
+                <strong>{stats.discipline}/100</strong>
+              </div>
+              <div className="metric-card">
+                <span>Риск</span>
+                <strong>{formatRisk(stats.risk)}</strong>
+              </div>
+              <div className="metric-card">
+                <span>Осталось сегодня</span>
+                <strong>{stats.remainingMinutes} мин.</strong>
+              </div>
+              <div className="metric-card">
+                <span>Баланс</span>
+                <strong>{stats.walletBalance} монет</strong>
+              </div>
+              <div className="metric-card">
+                <span>Штраф за пропуск</span>
+                <strong>{stats.moneyEnabled ? `${stats.penalty} монет` : 'выключен'}</strong>
+              </div>
+            </div>
+            <div className="recommendation-box motivation-summary-details">
+              <strong>Рекомендация</strong>
+              <p>
+                {feed?.recommendation ??
+                  experience?.aiRecommendation ??
+                  `Сделай ещё одну короткую сессию сегодня, чтобы сохранить темп.`}
+              </p>
+            </div>
+          </>
+        ) : null}
         {successMessage ? <p className="success-note">{successMessage}</p> : null}
         {initialLoading ? <p className="muted">Загрузка мотивационной ленты...</p> : null}
       </section>

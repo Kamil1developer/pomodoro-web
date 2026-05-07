@@ -200,6 +200,19 @@ describe('MotivationPage', () => {
     expect(screen.queryByText('Учить Java')).not.toBeInTheDocument();
   });
 
+  it('collapses motivation summary to give more space for images', async () => {
+    render(<MotivationPage />);
+
+    await screen.findByTestId('motivation-feed');
+    expect(screen.getByText('Дисциплина')).toBeTruthy();
+
+    fireEvent.click(screen.getByText('Свернуть сводку'));
+
+    expect(screen.queryByText('Дисциплина')).not.toBeInTheDocument();
+    expect(screen.getByText('Показать сводку')).toBeTruthy();
+    expect(screen.getByTestId('motivation-feed')).toBeTruthy();
+  });
+
   it('API error shows message', async () => {
     apiMock.getMotivationFeed.mockRejectedValueOnce(new Error('Feed error'));
 
