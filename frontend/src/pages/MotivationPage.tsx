@@ -38,6 +38,17 @@ const FALLBACK_IMAGE =
     </svg>
   `);
 
+const FALLBACK_QUOTES = [
+  'Не жди идеального настроения: начни с одного короткого действия.',
+  'Дисциплина начинается там, где ты выбираешь сделать шаг, даже если не хочется.',
+  'Маленькая Pomodoro-сессия сегодня сильнее большого плана на потом.',
+  'Результат складывается не из рывков, а из повторяемых действий.',
+  'Сделай первый шаг сейчас, а уверенность догонит тебя по дороге.',
+  'Каждая завершённая сессия доказывает, что цель ближе, чем кажется.',
+  'Не нужно делать идеально. Нужно сделать достаточно, чтобы продолжить завтра.',
+  'Фокус на ближайшие 25 минут важнее тревоги о всём пути.'
+];
+
 function sanitizeMotivationTitle(title: string | null | undefined): string {
   const value = (title ?? '').trim();
   if (!value || looksTechnicalText(value)) {
@@ -46,36 +57,76 @@ function sanitizeMotivationTitle(title: string | null | undefined): string {
   return value.length > 72 ? `${value.slice(0, 72).trim()}…` : value;
 }
 
-function sanitizeMotivationDescription(description: string | null | undefined, goalTitle: string): string {
-  const value = (description ?? '').trim();
-  if (!value || looksTechnicalText(value)) {
-    return `Продолжай движение к цели: ${goalTitle}.`;
-  }
-  return value.length > 180 ? `${value.slice(0, 180).trim()}…` : value;
-}
-
-function sanitizeCaption(
-  caption: string | null | undefined,
+function pickMotivationQuote(
+  image: MotivationImageItem,
   quoteText: string | null | undefined,
-  goalTitle: string
+  goalTitle: string,
+  goalDescription: string | null | undefined
 ): string {
-  const direct = (caption ?? '').trim();
-  if (direct && !looksTechnicalText(direct)) {
-    return direct.length > 220 ? `${direct.slice(0, 220).trim()}…` : direct;
+  const candidates = [quoteText, image.caption, image.description, image.title];
+  for (const candidate of candidates) {
+    const value = cleanMotivationText(candidate, goalTitle, goalDescription);
+    if (value) {
+      return value;
+    }
   }
-  const quote = (quoteText ?? '').trim();
-  if (quote && !looksTechnicalText(quote)) {
-    return quote;
-  }
-  return `Каждая Pomodoro-сессия приближает тебя к цели: ${goalTitle}.`;
+  return FALLBACK_QUOTES[Math.abs(image.id) % FALLBACK_QUOTES.length];
 }
 
-function sanitizeGoalReason(goalReason: string | null | undefined, goalTitle: string): string {
-  const value = (goalReason ?? '').trim();
-  if (!value || looksTechnicalText(value)) {
-    return `Карточка подобрана под активную цель «${goalTitle}» и её текущий темп.`;
+function cleanMotivationText(
+  value: string | null | undefined,
+  goalTitle: string,
+  goalDescription: string | null | undefined
+): string | null {
+  const text = (value ?? '').trim();
+  if (!text || looksTechnicalText(text) || isGoalEcho(text, goalTitle, goalDescription) || isServicePhrase(text)) {
+    return null;
   }
-  return value.length > 170 ? `${value.slice(0, 170).trim()}…` : value;
+  return text.length > 190 ? `${text.slice(0, 190).trim()}…` : text;
+}
+
+function normalizeComparableText(value: string | null | undefined): string {
+  return (value ?? '')
+    .toLowerCase()
+    .replace(/[ё]/g, 'е')
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function isGoalEcho(value: string, goalTitle: string, goalDescription: string | null | undefined): boolean {
+  const text = normalizeComparableText(value);
+  const title = normalizeComparableText(goalTitle);
+  const description = normalizeComparableText(goalDescription);
+  if (!text) {
+    return true;
+  }
+  if (title && (text === title || text.includes(title))) {
+    return true;
+  }
+  if (description && (text === description || text.includes(description) || description.includes(text))) {
+    return true;
+  }
+  return false;
+}
+
+function isServicePhrase(value: string): boolean {
+  const normalized = value.toLowerCase();
+  return (
+    normalized.includes('подобрано по активной цели') ||
+    normalized.includes('карточка подобрана') ||
+    normalized.includes('мотивационная карточка') ||
+    normalized.includes('visual motivation') ||
+    normalized.includes('goal:')
+  );
+}
+
+function formatQuote(value: string): string {
+  const trimmed = value.trim();
+  if (/^[«“"].*[»”"]$/.test(trimmed)) {
+    return trimmed;
+  }
+  return `«${trimmed}»`;
 }
 
 function looksTechnicalText(value: string): boolean {
@@ -116,6 +167,7 @@ function MotivationCard({
   image,
   quoteText,
   goalTitle,
+  goalDescription,
   onNotInterested,
   onReport,
   disabled
@@ -123,15 +175,14 @@ function MotivationCard({
   image: MotivationImageItem;
   quoteText?: string | null;
   goalTitle: string;
+  goalDescription?: string | null;
   onNotInterested: () => void;
   onReport: () => void;
   disabled: boolean;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
-  const title = sanitizeMotivationTitle(image.title);
-  const description = sanitizeMotivationDescription(image.description, goalTitle);
-  const caption = sanitizeCaption(image.caption, quoteText, goalTitle);
-  const goalReason = sanitizeGoalReason(image.goalReason, goalTitle);
+  const title = cleanMotivationText(image.title, goalTitle, goalDescription) ?? sanitizeMotivationTitle(null);
+  const quote = pickMotivationQuote(image, quoteText, goalTitle, goalDescription);
   const finalImage = imageFailed ? FALLBACK_IMAGE : resolveAssetUrl(image.imageUrl);
 
   return (
@@ -148,16 +199,14 @@ function MotivationCard({
       <div className="motivation-reel-body">
         <div className="motivation-reel-copy">
           <span className="motivation-reel-kicker">{title}</span>
-          <p className="motivation-reel-quote">{caption}</p>
-          <p className="motivation-reel-description">{description}</p>
-          <p className="motivation-reel-reason">{goalReason}</p>
+          <p className="motivation-reel-quote">{formatQuote(quote)}</p>
         </div>
         <div className="inline-actions motivation-reel-actions">
           <button className="btn btn-ghost" type="button" onClick={onNotInterested} disabled={disabled}>
-            Неинтересно
+            Не интересует
           </button>
           <button className="btn btn-ghost" type="button" onClick={onReport} disabled={disabled}>
-            Пожаловаться
+            Пожаловаться на контент
           </button>
         </div>
       </div>
@@ -178,6 +227,7 @@ export function MotivationPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const hiddenImageIdsRef = useRef<Set<number>>(new Set());
 
   const images = feed?.images ?? [];
   const quote = feed?.quote;
@@ -205,7 +255,11 @@ export function MotivationPage() {
           api.getMotivationFeed(selectedGoal.id, 10),
           api.getGoalExperience(selectedGoal.id)
         ]);
-        setFeed(feedData);
+        const hiddenIds = hiddenImageIdsRef.current;
+        setFeed({
+          ...feedData,
+          images: feedData.images.filter((image) => !hiddenIds.has(image.id))
+        });
         setExperience(experienceData);
         scrollRef.current?.scrollTo({ top: 0, behavior: showRefreshState ? 'smooth' : 'auto' });
       } catch (err) {
@@ -230,6 +284,7 @@ export function MotivationPage() {
     const run = async () => {
       setInitialLoading(true);
       setSuccessMessage(null);
+      hiddenImageIdsRef.current = new Set();
       await loadPageData(false);
       setInitialLoading(false);
     };
@@ -241,6 +296,7 @@ export function MotivationPage() {
     const currentImages = images;
     setWorkingImageId(imageId);
     setSuccessMessage(null);
+    hiddenImageIdsRef.current.add(imageId);
     setFeed((prev) =>
       prev
         ? {
@@ -263,6 +319,7 @@ export function MotivationPage() {
             }
           : prev
       );
+      hiddenImageIdsRef.current.delete(imageId);
       setError((err as Error).message);
     } finally {
       setWorkingImageId(null);
@@ -285,6 +342,7 @@ export function MotivationPage() {
     const currentImages = images;
     setWorkingImageId(imageId);
     setError(null);
+    hiddenImageIdsRef.current.add(imageId);
     setFeed((prev) =>
       prev
         ? {
@@ -313,6 +371,7 @@ export function MotivationPage() {
             }
           : prev
       );
+      hiddenImageIdsRef.current.delete(imageId);
       setError((err as Error).message);
     } finally {
       setWorkingImageId(null);
@@ -406,6 +465,7 @@ export function MotivationPage() {
                   image={image}
                   quoteText={quote?.quoteTextRu || quote?.quoteText}
                   goalTitle={selectedGoal.title}
+                  goalDescription={selectedGoal.description}
                   onNotInterested={() => void handleNotInterested(image.id)}
                   onReport={() => openReport(image)}
                   disabled={workingImageId === image.id}

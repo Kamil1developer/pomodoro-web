@@ -12,6 +12,21 @@ const { apiMock } = vi.hoisted(() => ({
   }
 }));
 
+const selectedGoalMock = {
+  id: 1,
+  title: 'Java goal',
+  description: 'Учить Java',
+  targetHours: 50,
+  deadline: null,
+  themeColor: '#dff6e5',
+  status: 'ACTIVE',
+  currentStreak: 0,
+  completedAt: null,
+  closedAt: null,
+  failureReason: null,
+  createdAt: '2026-01-01T00:00:00Z'
+};
+
 vi.mock('../lib/apiClient', () => ({
   api: apiMock,
   resolveAssetUrl: (path: string) => path
@@ -19,20 +34,7 @@ vi.mock('../lib/apiClient', () => ({
 
 vi.mock('../lib/useAppShellContext', () => ({
   useAppShellContext: () => ({
-    selectedGoal: {
-      id: 1,
-      title: 'Java goal',
-      description: 'Учить Java',
-      targetHours: 50,
-      deadline: null,
-      themeColor: '#dff6e5',
-      status: 'ACTIVE',
-      currentStreak: 0,
-      completedAt: null,
-      closedAt: null,
-      failureReason: null,
-      createdAt: '2026-01-01T00:00:00Z'
-    }
+    selectedGoal: selectedGoalMock
   })
 }));
 
@@ -129,11 +131,11 @@ describe('MotivationPage', () => {
     expect(screen.getAllByTestId('motivation-card')).toHaveLength(10);
   });
 
-  it('clicking Неинтересно removes card', async () => {
+  it('clicking Не интересует removes card', async () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
-    fireEvent.click(screen.getAllByText('Неинтересно')[0]);
+    fireEvent.click(screen.getAllByText('Не интересует')[0]);
 
     await waitFor(() => {
       expect(screen.queryByText('Image 1')).not.toBeInTheDocument();
@@ -144,7 +146,7 @@ describe('MotivationPage', () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
-    fireEvent.click(screen.getAllByText('Пожаловаться')[0]);
+    fireEvent.click(screen.getAllByText('Пожаловаться на контент')[0]);
 
     expect(screen.getByText('Почему вы жалуетесь?')).toBeTruthy();
     expect(screen.getByText('Не относится к моей цели')).toBeTruthy();
@@ -154,7 +156,7 @@ describe('MotivationPage', () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
-    fireEvent.click(screen.getAllByText('Пожаловаться')[0]);
+    fireEvent.click(screen.getAllByText('Пожаловаться на контент')[0]);
     fireEvent.click(screen.getByText('Отправить жалобу'));
 
     await waitFor(() => {
@@ -172,6 +174,30 @@ describe('MotivationPage', () => {
     await waitFor(() => {
       expect((image as HTMLImageElement).src).toContain('data:image/svg+xml');
     });
+  });
+
+  it('does not use goal description as the motivation quote', async () => {
+    apiMock.getMotivationFeed.mockResolvedValueOnce({
+      ...baseFeed,
+      images: [
+        {
+          ...baseFeed.images[0],
+          title: 'Java goal',
+          description: 'Учить Java',
+          caption: 'Учить Java',
+          goalReason: 'Подобрано по активной цели и её описанию.'
+        }
+      ],
+      quote: {
+        ...baseFeed.quote,
+        quoteTextRu: 'Начни с малого шага.'
+      }
+    });
+
+    render(<MotivationPage />);
+
+    expect(await screen.findByText('«Начни с малого шага.»')).toBeTruthy();
+    expect(screen.queryByText('Учить Java')).not.toBeInTheDocument();
   });
 
   it('API error shows message', async () => {
