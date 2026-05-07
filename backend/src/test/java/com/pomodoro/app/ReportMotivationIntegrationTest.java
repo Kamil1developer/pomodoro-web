@@ -27,7 +27,8 @@ class ReportMotivationIntegrationTest extends IntegrationTestSupport {
   @Autowired private MotivationImageFeedbackRepository motivationImageFeedbackRepository;
 
   @Test
-  void refreshFeedShouldCreateFallbackCardsWhenExternalSourceIsEmptyOrUnavailable() throws Exception {
+  void refreshFeedShouldCreateFallbackCardsWhenExternalSourceIsEmptyOrUnavailable()
+      throws Exception {
     Tokens tokens = registerUser("mot-refresh@test.dev", "password123");
     Long goalId = createGoal(tokens.accessToken(), "Выучить английский");
 

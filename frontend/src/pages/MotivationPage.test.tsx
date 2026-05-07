@@ -129,11 +129,11 @@ describe('MotivationPage', () => {
     expect(screen.getAllByTestId('motivation-card')).toHaveLength(10);
   });
 
-  it('clicking Не интересует removes card', async () => {
+  it('clicking Неинтересно removes card', async () => {
     render(<MotivationPage />);
     await screen.findByText('Image 1');
 
-    fireEvent.click(screen.getAllByText('Не интересует')[0]);
+    fireEvent.click(screen.getAllByText('Неинтересно')[0]);
 
     await waitFor(() => {
       expect(screen.queryByText('Image 1')).not.toBeInTheDocument();

@@ -4,6 +4,16 @@ export type ChatRole = 'USER' | 'ASSISTANT' | 'SYSTEM';
 export type CommitmentStatus = 'ACTIVE' | 'COMPLETED' | 'PAUSED' | 'FAILED';
 export type RiskStatus = 'LOW' | 'MEDIUM' | 'HIGH';
 export type GoalStatus = 'ACTIVE' | 'COMPLETED' | 'FAILED' | 'ARCHIVED';
+export type CommitmentMoneyStatus = 'ACTIVE' | 'EMPTY' | 'DISABLED';
+export type WalletStatus = 'ACTIVE' | 'EMPTY' | 'LOCKED';
+export type WalletTransactionType =
+  | 'INITIAL_GRANT'
+  | 'GOAL_DEPOSIT_LOCKED'
+  | 'DAILY_PENALTY'
+  | 'GOAL_COMPLETED_REWARD'
+  | 'MANUAL_ADJUSTMENT'
+  | 'REFUND'
+  | 'ACCOUNT_LOCKED';
 export type MotivationImageFeedbackType = 'NOT_INTERESTED' | 'REPORTED';
 export type MotivationImageReportReason =
   | 'NSFW'
@@ -35,7 +45,9 @@ export type GoalEventType =
   | 'DISCIPLINE_SCORE_CHANGED'
   | 'RISK_STATUS_CHANGED'
   | 'REWARD_UNLOCKED'
-  | 'AI_RECOMMENDATION_CREATED';
+  | 'AI_RECOMMENDATION_CREATED'
+  | 'MONEY_PENALTY_CHARGED'
+  | 'MONEY_EMPTY';
 
 export interface TokenResponse {
   accessToken: string;
@@ -111,6 +123,11 @@ export interface GoalCommitment {
   personalRewardDescription: string | null;
   rewardUnlocked: boolean;
   riskStatus: RiskStatus;
+  moneyEnabled: boolean;
+  depositAmount: number;
+  dailyPenaltyAmount: number;
+  totalPenaltyCharged: number;
+  moneyStatus: CommitmentMoneyStatus;
   createdAt: string;
   updatedAt: string;
 }
@@ -128,6 +145,13 @@ export interface TodayStatus {
   disciplineScore: number | null;
   currentStreak: number | null;
   riskStatus: RiskStatus | null;
+  walletBalance: number | null;
+  dailyPenaltyAmount: number | null;
+  depositAmount: number | null;
+  totalPenaltyCharged: number | null;
+  moneyEnabled: boolean;
+  moneyStatus: CommitmentMoneyStatus | null;
+  nextPenaltyWarning: string | null;
   motivationalMessage: string;
   nextRecommendedAction: string;
 }
@@ -222,6 +246,13 @@ export interface ProfileStats {
   riskSummary: RiskStatus | null;
 }
 
+export interface ProfileWallet {
+  balance: number;
+  initialBalance: number;
+  totalPenalties: number;
+  status: WalletStatus;
+}
+
 export interface ProfileActiveGoalItem {
   goalId: number;
   title: string;
@@ -232,6 +263,10 @@ export interface ProfileActiveGoalItem {
   remainingMinutesToday: number | null;
   disciplineScore: number | null;
   riskStatus: RiskStatus | null;
+  moneyEnabled: boolean;
+  dailyPenaltyAmount: number;
+  totalPenaltyCharged: number;
+  moneyStatus: CommitmentMoneyStatus;
   createdAt: string;
 }
 
@@ -243,6 +278,7 @@ export interface ProfileGoalHistoryItem {
   createdAt: string;
   completedAt: string | null;
   closedAt: string | null;
+  totalPenaltyCharged: number;
   loserBadge: boolean;
 }
 
@@ -252,6 +288,7 @@ export interface ProfileResponse {
   fullName: string;
   avatarPath: string | null;
   stats: ProfileStats;
+  wallet: ProfileWallet;
   activeGoals: ProfileActiveGoalItem[];
   goalHistory: ProfileGoalHistoryItem[];
 }
@@ -283,6 +320,31 @@ export interface DailyStat {
 export interface GoalStats {
   goalId: number;
   days: DailyStat[];
+}
+
+export interface WalletResponse {
+  balance: number;
+  initialBalance: number;
+  totalAdded: number;
+  totalPenalties: number;
+  status: WalletStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WalletTransaction {
+  id: number;
+  type: WalletTransactionType;
+  amount: number;
+  balanceBefore: number;
+  balanceAfter: number;
+  reason: string;
+  goalTitle: string | null;
+  createdAt: string;
+}
+
+export interface WalletTransactionHistory {
+  transactions: WalletTransaction[];
 }
 
 export interface ApiError {

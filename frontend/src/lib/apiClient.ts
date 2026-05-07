@@ -18,7 +18,9 @@ import {
   type ReportItem,
   type TaskItem,
   type TodayStatus,
-  type TokenResponse
+  type TokenResponse,
+  type WalletResponse,
+  type WalletTransactionHistory
 } from '../types/api';
 import { clearTokens, getTokens, setTokens } from './authStorage';
 
@@ -276,6 +278,9 @@ export const api = {
       endDate?: string;
       personalRewardTitle?: string;
       personalRewardDescription?: string;
+      moneyEnabled?: boolean;
+      depositAmount?: number;
+      dailyPenaltyAmount?: number;
     }
   ) {
     return request<GoalCommitment>(`/goals/${goalId}/commitment`, {
@@ -389,5 +394,11 @@ export const api = {
   },
   getProfileGoals() {
     return request<ProfileGoalsResponse>('/profile/goals');
+  },
+  getWallet() {
+    return request<WalletResponse>('/wallet');
+  },
+  getWalletTransactions() {
+    return request<WalletTransactionHistory>('/wallet/transactions');
   }
 };

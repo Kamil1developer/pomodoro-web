@@ -13,7 +13,6 @@ import com.pomodoro.app.entity.Report;
 import com.pomodoro.app.entity.TaskItem;
 import com.pomodoro.app.entity.User;
 import com.pomodoro.app.enums.ChatRole;
-import com.pomodoro.app.enums.GoalStatus;
 import com.pomodoro.app.repository.ChatMessageRepository;
 import com.pomodoro.app.repository.ChatThreadRepository;
 import com.pomodoro.app.repository.FocusSessionRepository;
@@ -32,7 +31,6 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -95,9 +93,12 @@ public class ChatService {
             .createdAt(OffsetDateTime.now())
             .build());
 
-    List<ChatMessage> history = chatMessageRepository.findByThreadIdOrderByCreatedAtAsc(thread.getId());
+    List<ChatMessage> history =
+        chatMessageRepository.findByThreadIdOrderByCreatedAtAsc(thread.getId());
     List<AiDtos.ChatInputMessage> aiMessages = new ArrayList<>();
-    aiMessages.add(new AiDtos.ChatInputMessage("system", buildUserContextPrompt(userId, goal, content, history)));
+    aiMessages.add(
+        new AiDtos.ChatInputMessage(
+            "system", buildUserContextPrompt(userId, goal, content, history)));
     history.forEach(
         message ->
             aiMessages.add(
@@ -164,8 +165,10 @@ public class ChatService {
   private String buildUserContextPrompt(
       Long userId, Goal activeGoal, String lastUserMessage, List<ChatMessage> history) {
     User user = userRepository.findById(userId).orElseThrow();
-    GoalExperienceDtos.TodayStatusResponse today = goalCommitmentService.getTodayStatus(userId, activeGoal.getId());
-    GoalExperienceDtos.ForecastResponse forecast = goalCommitmentService.getForecast(userId, activeGoal.getId());
+    GoalExperienceDtos.TodayStatusResponse today =
+        goalCommitmentService.getTodayStatus(userId, activeGoal.getId());
+    GoalExperienceDtos.ForecastResponse forecast =
+        goalCommitmentService.getForecast(userId, activeGoal.getId());
     List<Goal> goals = goalRepository.findByUserIdOrderByCreatedAtDesc(userId);
     Map<Long, List<TaskItem>> tasksByGoal =
         taskItemRepository.findByGoalUserIdOrderByGoalIdAscCreatedAtAsc(userId).stream()
@@ -179,11 +182,21 @@ public class ChatService {
                     (left, right) -> left));
 
     List<FocusSession> recentSessions =
-        focusSessionRepository.findByGoalIdOrderByStartedAtDesc(activeGoal.getId()).stream().limit(5).toList();
-    List<Report> recentReports = reportRepository.findByGoalIdOrderByCreatedAtDesc(activeGoal.getId()).stream().limit(5).toList();
-    List<MotivationImageFeedback> feedbacks = motivationImageFeedbackRepository.findByUserId(userId);
-    long hiddenCount = feedbacks.stream().filter(feedback -> feedback.getType().name().equals("NOT_INTERESTED")).count();
-    long reportedCount = feedbacks.stream().filter(feedback -> feedback.getType().name().equals("REPORTED")).count();
+        focusSessionRepository.findByGoalIdOrderByStartedAtDesc(activeGoal.getId()).stream()
+            .limit(5)
+            .toList();
+    List<Report> recentReports =
+        reportRepository.findByGoalIdOrderByCreatedAtDesc(activeGoal.getId()).stream()
+            .limit(5)
+            .toList();
+    List<MotivationImageFeedback> feedbacks =
+        motivationImageFeedbackRepository.findByUserId(userId);
+    long hiddenCount =
+        feedbacks.stream()
+            .filter(feedback -> feedback.getType().name().equals("NOT_INTERESTED"))
+            .count();
+    long reportedCount =
+        feedbacks.stream().filter(feedback -> feedback.getType().name().equals("REPORTED")).count();
 
     String goalsContext =
         goals.stream()
@@ -208,7 +221,9 @@ public class ChatService {
                       + (commitment == null ? "-" : commitment.getDisciplineScore())
                       + " | risk="
                       + (commitment == null ? "-" : commitment.getRiskStatus())
-                      + (goal.getFailureReason() == null ? "" : " | failureReason=" + goal.getFailureReason());
+                      + (goal.getFailureReason() == null
+                          ? ""
+                          : " | failureReason=" + goal.getFailureReason());
                 })
             .collect(Collectors.joining("\n"));
 
@@ -219,7 +234,9 @@ public class ChatService {
                     "- "
                         + session.getStartedAt()
                         + " | duration="
-                        + (session.getDurationMinutes() == null ? "active" : session.getDurationMinutes() + " min"))
+                        + (session.getDurationMinutes() == null
+                            ? "active"
+                            : session.getDurationMinutes() + " min"))
             .collect(Collectors.joining("\n"));
 
     String reportsContext =
@@ -237,9 +254,18 @@ public class ChatService {
             .collect(Collectors.joining("\n"));
 
     String eventsContext =
-        goalEventRepository.findTop20ByGoalIdAndUserIdOrderByCreatedAtDesc(activeGoal.getId(), userId).stream()
+        goalEventRepository
+            .findTop20ByGoalIdAndUserIdOrderByCreatedAtDesc(activeGoal.getId(), userId)
+            .stream()
             .limit(6)
-            .map(event -> "- " + event.getCreatedAt() + " | " + event.getTitle() + " | " + (event.getDescription() == null ? "-" : event.getDescription()))
+            .map(
+                event ->
+                    "- "
+                        + event.getCreatedAt()
+                        + " | "
+                        + event.getTitle()
+                        + " | "
+                        + (event.getDescription() == null ? "-" : event.getDescription()))
             .collect(Collectors.joining("\n"));
 
     String recentMessages =
@@ -290,6 +316,16 @@ public class ChatService {
         + today.disciplineScore()
         + "\n- riskStatus: "
         + today.riskStatus()
+        + "\n- walletBalance: "
+        + today.walletBalance()
+        + "\n- moneyEnabled: "
+        + today.moneyEnabled()
+        + "\n- dailyPenaltyAmount: "
+        + today.dailyPenaltyAmount()
+        + "\n- totalPenaltyCharged: "
+        + today.totalPenaltyCharged()
+        + "\n- nextPenaltyWarning: "
+        + (today.nextPenaltyWarning() == null ? "-" : today.nextPenaltyWarning())
         + "\n- nextRecommendedAction: "
         + today.nextRecommendedAction()
         + "\nПрогноз:"

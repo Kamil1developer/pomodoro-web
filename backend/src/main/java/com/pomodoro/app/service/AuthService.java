@@ -25,18 +25,21 @@ public class AuthService {
   private final PasswordEncoder passwordEncoder;
   private final JwtService jwtService;
   private final AppProperties appProperties;
+  private final WalletService walletService;
 
   public AuthService(
       UserRepository userRepository,
       RefreshTokenRepository refreshTokenRepository,
       PasswordEncoder passwordEncoder,
       JwtService jwtService,
-      AppProperties appProperties) {
+      AppProperties appProperties,
+      WalletService walletService) {
     this.userRepository = userRepository;
     this.refreshTokenRepository = refreshTokenRepository;
     this.passwordEncoder = passwordEncoder;
     this.jwtService = jwtService;
     this.appProperties = appProperties;
+    this.walletService = walletService;
   }
 
   public AuthDtos.TokenResponse register(AuthDtos.RegisterRequest request) {
@@ -52,6 +55,7 @@ public class AuthService {
                 .role(Role.USER)
                 .createdAt(OffsetDateTime.now())
                 .build());
+    walletService.initializeWalletForNewUser(user);
 
     return createTokenPair(user);
   }

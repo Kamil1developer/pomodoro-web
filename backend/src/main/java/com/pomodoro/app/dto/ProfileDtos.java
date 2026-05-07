@@ -2,6 +2,7 @@ package com.pomodoro.app.dto;
 
 import com.pomodoro.app.enums.GoalStatus;
 import com.pomodoro.app.enums.RiskStatus;
+import com.pomodoro.app.enums.WalletStatus;
 import jakarta.validation.constraints.Size;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -13,6 +14,7 @@ public class ProfileDtos {
       String fullName,
       String avatarPath,
       ProfileStatsResponse stats,
+      ProfileWalletResponse wallet,
       List<ProfileGoalItem> activeGoals,
       List<ProfileGoalHistoryItem> goalHistory) {}
 
@@ -25,6 +27,9 @@ public class ProfileDtos {
       Double averageDiscipline,
       RiskStatus riskSummary) {}
 
+  public record ProfileWalletResponse(
+      Integer balance, Integer initialBalance, Integer totalPenalties, WalletStatus status) {}
+
   public record ProfileGoalItem(
       Long goalId,
       String title,
@@ -35,6 +40,10 @@ public class ProfileDtos {
       Integer remainingMinutesToday,
       Integer disciplineScore,
       RiskStatus riskStatus,
+      Boolean moneyEnabled,
+      Integer dailyPenaltyAmount,
+      Integer totalPenaltyCharged,
+      String moneyStatus,
       OffsetDateTime createdAt) {}
 
   public record ProfileGoalHistoryItem(
@@ -45,6 +54,7 @@ public class ProfileDtos {
       OffsetDateTime createdAt,
       OffsetDateTime completedAt,
       OffsetDateTime closedAt,
+      Integer totalPenaltyCharged,
       Boolean loserBadge) {}
 
   public record UpdateProfileRequest(@Size(max = 255) String fullName) {}

@@ -7,9 +7,12 @@ import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.GoalCommitment;
 import com.pomodoro.app.entity.Report;
-import com.pomodoro.app.enums.GoalStatus;
+import com.pomodoro.app.entity.UserWallet;
+import com.pomodoro.app.entity.WalletTransaction;
+import com.pomodoro.app.enums.CommitmentMoneyStatus;
 import com.pomodoro.app.enums.CommitmentStatus;
 import com.pomodoro.app.enums.GoalEventType;
+import com.pomodoro.app.enums.GoalStatus;
 import com.pomodoro.app.enums.ReportStatus;
 import com.pomodoro.app.enums.RiskStatus;
 import com.pomodoro.app.exception.AppException;
@@ -39,6 +42,7 @@ public class GoalCommitmentService {
   private final FocusSessionRepository focusSessionRepository;
   private final ReportRepository reportRepository;
   private final DailySummaryRepository dailySummaryRepository;
+  private final WalletService walletService;
 
   public GoalCommitmentService(
       GoalCommitmentRepository goalCommitmentRepository,
@@ -47,7 +51,8 @@ public class GoalCommitmentService {
       GoalEventService goalEventService,
       FocusSessionRepository focusSessionRepository,
       ReportRepository reportRepository,
-      DailySummaryRepository dailySummaryRepository) {
+      DailySummaryRepository dailySummaryRepository,
+      WalletService walletService) {
     this.goalCommitmentRepository = goalCommitmentRepository;
     this.goalRepository = goalRepository;
     this.goalService = goalService;
@@ -55,6 +60,7 @@ public class GoalCommitmentService {
     this.focusSessionRepository = focusSessionRepository;
     this.reportRepository = reportRepository;
     this.dailySummaryRepository = dailySummaryRepository;
+    this.walletService = walletService;
   }
 
   @Transactional
@@ -74,6 +80,21 @@ public class GoalCommitmentService {
                   "Для этой цели уже существует активное ежедневное обязательство.");
             });
 
+    boolean moneyEnabled = Boolean.TRUE.equals(request.moneyEnabled());
+    int depositAmount = request.depositAmount() == null ? 0 : request.depositAmount();
+    int dailyPenaltyAmount =
+        request.dailyPenaltyAmount() == null ? 0 : request.dailyPenaltyAmount();
+    if (moneyEnabled) {
+      if (dailyPenaltyAmount <= 0) {
+        throw new AppException(
+            HttpStatus.BAD_REQUEST, "Штраф за пропуск должен быть больше 0 монет.");
+      }
+      if (depositAmount < dailyPenaltyAmount) {
+        throw new AppException(
+            HttpStatus.BAD_REQUEST, "Виртуальный залог должен быть не меньше штрафа за день.");
+      }
+    }
+
     OffsetDateTime now = OffsetDateTime.now();
     GoalCommitment commitment = new GoalCommitment();
     commitment.setUser(goal.getUser());
@@ -91,6 +112,12 @@ public class GoalCommitmentService {
     commitment.setPersonalRewardDescription(blankToNull(request.personalRewardDescription()));
     commitment.setRewardUnlocked(false);
     commitment.setRiskStatus(RiskStatus.LOW);
+    commitment.setMoneyEnabled(moneyEnabled);
+    commitment.setDepositAmount(moneyEnabled ? depositAmount : 0);
+    commitment.setDailyPenaltyAmount(moneyEnabled ? dailyPenaltyAmount : 0);
+    commitment.setTotalPenaltyCharged(0);
+    commitment.setMoneyStatus(
+        moneyEnabled ? CommitmentMoneyStatus.ACTIVE : CommitmentMoneyStatus.DISABLED);
     commitment.setCreatedAt(now);
     commitment.setUpdatedAt(now);
 
@@ -153,7 +180,9 @@ public class GoalCommitmentService {
 
   @Transactional(readOnly = true)
   public List<GoalExperienceDtos.GoalExperienceResponse> getDashboardExperience(Long userId) {
-    return goalRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE).stream()
+    return goalRepository
+        .findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE)
+        .stream()
         .map(goal -> getGoalExperience(userId, goal.getId()))
         .toList();
   }
@@ -282,6 +311,7 @@ public class GoalCommitmentService {
             null,
             date.toString(),
             eventTimestamp);
+        applyDailyPenaltyIfNeeded(commitment, goal, date, eventTimestamp);
       }
 
       RiskStatus recalculatedRisk =
@@ -378,6 +408,19 @@ public class GoalCommitmentService {
         dailyTargetMinutes == null ? null : Math.max(dailyTargetMinutes - focusMinutes, 0);
     boolean targetReached = dailyTargetMinutes != null && focusMinutes >= dailyTargetMinutes;
     boolean completed = targetReached && approved;
+    UserWallet wallet = walletService.getOrCreateWallet(goal.getUser().getId());
+    Integer walletBalance = wallet.getBalance();
+    Integer dailyPenaltyAmount = commitment != null ? commitment.getDailyPenaltyAmount() : null;
+    Integer depositAmount = commitment != null ? commitment.getDepositAmount() : null;
+    Integer totalPenaltyCharged = commitment != null ? commitment.getTotalPenaltyCharged() : null;
+    Boolean moneyEnabled = commitment != null ? commitment.getMoneyEnabled() : false;
+    CommitmentMoneyStatus moneyStatus =
+        commitment != null ? commitment.getMoneyStatus() : CommitmentMoneyStatus.DISABLED;
+    String nextPenaltyWarning =
+        Boolean.TRUE.equals(moneyEnabled) && dailyPenaltyAmount != null && dailyPenaltyAmount > 0
+            ? "Если сегодня не выполнить цель, будет списано %d виртуальных монет."
+                .formatted(Math.min(walletBalance, dailyPenaltyAmount))
+            : null;
 
     String message;
     String action;
@@ -418,6 +461,13 @@ public class GoalCommitmentService {
         commitment != null ? commitment.getDisciplineScore() : null,
         commitment != null ? commitment.getCurrentStreak() : goal.getCurrentStreak(),
         commitment != null ? commitment.getRiskStatus() : null,
+        walletBalance,
+        dailyPenaltyAmount,
+        depositAmount,
+        totalPenaltyCharged,
+        moneyEnabled,
+        moneyStatus,
+        nextPenaltyWarning,
         message,
         action);
   }
@@ -522,6 +572,10 @@ public class GoalCommitmentService {
       return "Осталось %d минут до дневной нормы. Сейчас лучший шаг — закрыть ещё одну Pomodoro-сессию."
           .formatted(today.remainingMinutesToday());
     }
+    if (today.nextPenaltyWarning() != null && today.reportStatusToday() == null) {
+      return today.nextPenaltyWarning()
+          + " Закройте норму и отправьте фото-отчёт, чтобы не потерять баланс.";
+    }
     if (today.reportStatusToday() == null || today.reportStatusToday() == ReportStatus.REJECTED) {
       return "После работы по цели не забудьте отправить фото-отчёт: без подтверждённого отчёта день не будет засчитан.";
     }
@@ -570,8 +624,56 @@ public class GoalCommitmentService {
         commitment.getPersonalRewardDescription(),
         commitment.getRewardUnlocked(),
         commitment.getRiskStatus(),
+        commitment.getMoneyEnabled(),
+        commitment.getDepositAmount(),
+        commitment.getDailyPenaltyAmount(),
+        commitment.getTotalPenaltyCharged(),
+        commitment.getMoneyStatus(),
         commitment.getCreatedAt(),
         commitment.getUpdatedAt());
+  }
+
+  private void applyDailyPenaltyIfNeeded(
+      GoalCommitment commitment, Goal goal, LocalDate date, OffsetDateTime eventTimestamp) {
+    if (!Boolean.TRUE.equals(commitment.getMoneyEnabled())
+        || commitment.getMoneyStatus() != CommitmentMoneyStatus.ACTIVE
+        || commitment.getDailyPenaltyAmount() == null
+        || commitment.getDailyPenaltyAmount() <= 0) {
+      return;
+    }
+
+    WalletTransaction transaction =
+        walletService.chargeDailyPenalty(
+            goal.getUser().getId(),
+            goal,
+            commitment,
+            commitment.getDailyPenaltyAmount(),
+            "Штраф за пропущенный день %s по цели «%s».".formatted(date, goal.getTitle()));
+    commitment.setTotalPenaltyCharged(
+        commitment.getTotalPenaltyCharged() + transaction.getAmount());
+
+    goalEventService.createEvent(
+        goal,
+        commitment,
+        GoalEventType.MONEY_PENALTY_CHARGED,
+        "Списан виртуальный штраф",
+        "За пропущенный день списано %d виртуальных монет.".formatted(transaction.getAmount()),
+        String.valueOf(transaction.getBalanceBefore()),
+        String.valueOf(transaction.getBalanceAfter()),
+        eventTimestamp);
+
+    if (transaction.getBalanceAfter() == 0) {
+      commitment.setMoneyStatus(CommitmentMoneyStatus.EMPTY);
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.MONEY_EMPTY,
+          "Баланс виртуальной ответственности закончился",
+          "Цель перешла в критическое состояние: виртуальный баланс равен 0.",
+          null,
+          "0",
+          eventTimestamp);
+    }
   }
 
   private int focusMinutesForDate(Long goalId, LocalDate date) {

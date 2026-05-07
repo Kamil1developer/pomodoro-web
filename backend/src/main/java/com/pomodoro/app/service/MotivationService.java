@@ -603,7 +603,9 @@ public class MotivationService {
                       || !uniqueSources.add(sourceUrl)) {
                     return;
                   }
-                  String title = sanitizeFeedTitle(formatCommonsTitle(page.path("title").asText("Motivation image")), goal);
+                  String title =
+                      sanitizeFeedTitle(
+                          formatCommonsTitle(page.path("title").asText("Motivation image")), goal);
                   String description = sanitizeFeedDescription(page.path("title").asText(""), goal);
                   candidates.add(
                       new ImageCandidate(imageUrl, sourceUrl, title, description, query));
@@ -750,7 +752,8 @@ public class MotivationService {
         m.getCreatedAt());
   }
 
-  private MotivationDtos.MotivationImageResponse toFeedImageResponse(Goal goal, MotivationImage image) {
+  private MotivationDtos.MotivationImageResponse toFeedImageResponse(
+      Goal goal, MotivationImage image) {
     return new MotivationDtos.MotivationImageResponse(
         image.getId(),
         image.getImagePath(),
@@ -827,7 +830,8 @@ public class MotivationService {
   }
 
   private String buildCaption(Goal goal, MotivationImage image) {
-    String goalTitle = goal.getTitle() == null || goal.getTitle().isBlank() ? "вашей цели" : goal.getTitle();
+    String goalTitle =
+        goal.getTitle() == null || goal.getTitle().isBlank() ? "вашей цели" : goal.getTitle();
     String description = image.getDescription();
     if (description != null && !looksTechnicalText(description) && !description.isBlank()) {
       return description;
@@ -839,7 +843,8 @@ public class MotivationService {
     String theme = image.getTheme() == null ? "GENERAL" : image.getTheme();
     return switch (theme) {
       case "SPORT" -> "Подобрано под спортивную цель и визуально поддерживает ритм тренировок.";
-      case "CODE" -> "Подобрано под техническую цель: помогает удерживать внимание на практике и результате.";
+      case "CODE" ->
+          "Подобрано под техническую цель: помогает удерживать внимание на практике и результате.";
       case "STUDY" -> "Подобрано под учебную цель: поддерживает фокус на регулярном обучении.";
       default -> "Подобрано по активной цели и её описанию, чтобы поддержать сегодняшний темп.";
     };
@@ -855,7 +860,10 @@ public class MotivationService {
   }
 
   private String createFallbackImage(Goal goal, FallbackCardTemplate template) {
-    String background = goal.getThemeColor() == null || goal.getThemeColor().isBlank() ? "#dff6e5" : goal.getThemeColor();
+    String background =
+        goal.getThemeColor() == null || goal.getThemeColor().isBlank()
+            ? "#dff6e5"
+            : goal.getThemeColor();
     String accent = darkenColor(background, 0.58);
     String svg =
         """
@@ -892,7 +900,8 @@ public class MotivationService {
                 escapeXml(template.description()),
                 escapeXml(accent),
                 escapeXml(template.caption()));
-    return storageService.storeBytes(svg.getBytes(java.nio.charset.StandardCharsets.UTF_8), "motivation", "svg");
+    return storageService.storeBytes(
+        svg.getBytes(java.nio.charset.StandardCharsets.UTF_8), "motivation", "svg");
   }
 
   private String darkenColor(String hex, double factor) {

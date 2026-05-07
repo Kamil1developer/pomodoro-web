@@ -1,5 +1,6 @@
 package com.pomodoro.app.dto;
 
+import com.pomodoro.app.enums.CommitmentMoneyStatus;
 import com.pomodoro.app.enums.CommitmentStatus;
 import com.pomodoro.app.enums.GoalEventType;
 import com.pomodoro.app.enums.ReportStatus;
@@ -19,7 +20,10 @@ public class GoalExperienceDtos {
       @NotNull LocalDate startDate,
       LocalDate endDate,
       @Size(max = 255) String personalRewardTitle,
-      @Size(max = 3000) String personalRewardDescription) {}
+      @Size(max = 3000) String personalRewardDescription,
+      Boolean moneyEnabled,
+      @Min(0) Integer depositAmount,
+      @Min(0) Integer dailyPenaltyAmount) {}
 
   public record CommitmentResponse(
       Long id,
@@ -37,6 +41,11 @@ public class GoalExperienceDtos {
       String personalRewardDescription,
       Boolean rewardUnlocked,
       RiskStatus riskStatus,
+      Boolean moneyEnabled,
+      Integer depositAmount,
+      Integer dailyPenaltyAmount,
+      Integer totalPenaltyCharged,
+      CommitmentMoneyStatus moneyStatus,
       OffsetDateTime createdAt,
       OffsetDateTime updatedAt) {}
 
@@ -53,6 +62,13 @@ public class GoalExperienceDtos {
       Integer disciplineScore,
       Integer currentStreak,
       RiskStatus riskStatus,
+      Integer walletBalance,
+      Integer dailyPenaltyAmount,
+      Integer depositAmount,
+      Integer totalPenaltyCharged,
+      Boolean moneyEnabled,
+      CommitmentMoneyStatus moneyStatus,
+      String nextPenaltyWarning,
       String motivationalMessage,
       String nextRecommendedAction) {}
 

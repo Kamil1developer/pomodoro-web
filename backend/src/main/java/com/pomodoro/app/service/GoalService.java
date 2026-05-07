@@ -15,8 +15,6 @@ import com.pomodoro.app.repository.GoalRepository;
 import com.pomodoro.app.repository.TaskItemRepository;
 import com.pomodoro.app.repository.UserRepository;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -75,7 +73,9 @@ public class GoalService {
 
   @Transactional(readOnly = true)
   public List<GoalDtos.GoalResponse> getGoals(Long userId) {
-    return goalRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE).stream()
+    return goalRepository
+        .findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE)
+        .stream()
         .map(this::toGoalResponse)
         .toList();
   }
@@ -131,8 +131,7 @@ public class GoalService {
       Long userId, Long goalId, GoalDtos.GoalUpdateRequest request) {
     Goal goal = ownedGoal(userId, goalId);
     if (goal.getStatus() != GoalStatus.ACTIVE) {
-      throw new AppException(
-          HttpStatus.BAD_REQUEST, "Редактировать можно только активную цель.");
+      throw new AppException(HttpStatus.BAD_REQUEST, "Редактировать можно только активную цель.");
     }
     ensureNoSimilarActiveGoal(userId, request.title(), goalId);
     goal.setTitle(cleanText(request.title()));
@@ -157,7 +156,8 @@ public class GoalService {
   public GoalDtos.GoalResponse closeFailedGoal(Long userId, Long goalId, String reason) {
     Goal goal = ownedGoal(userId, goalId);
     if (goal.getStatus() != GoalStatus.ACTIVE) {
-      throw new AppException(HttpStatus.BAD_REQUEST, "Закрыть как невыполненную можно только активную цель.");
+      throw new AppException(
+          HttpStatus.BAD_REQUEST, "Закрыть как невыполненную можно только активную цель.");
     }
     String normalizedReason = cleanText(reason);
     goal.setStatus(GoalStatus.FAILED);

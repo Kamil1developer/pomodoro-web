@@ -154,7 +154,7 @@ function MotivationCard({
         </div>
         <div className="inline-actions motivation-reel-actions">
           <button className="btn btn-ghost" type="button" onClick={onNotInterested} disabled={disabled}>
-            Не интересует
+            Неинтересно
           </button>
           <button className="btn btn-ghost" type="button" onClick={onReport} disabled={disabled}>
             Пожаловаться
@@ -324,7 +324,10 @@ export function MotivationPage() {
       streak: experience?.today.currentStreak ?? 0,
       discipline: experience?.today.disciplineScore ?? 0,
       risk: experience?.today.riskStatus ?? 'Не рассчитан',
-      remainingMinutes: experience?.today.remainingMinutesToday ?? 0
+      remainingMinutes: experience?.today.remainingMinutesToday ?? 0,
+      walletBalance: experience?.today.walletBalance ?? 0,
+      penalty: experience?.today.dailyPenaltyAmount ?? 0,
+      moneyEnabled: Boolean(experience?.today.moneyEnabled)
     }),
     [experience]
   );
@@ -365,6 +368,14 @@ export function MotivationPage() {
           <div className="metric-card">
             <span>Осталось сегодня</span>
             <strong>{stats.remainingMinutes} мин.</strong>
+          </div>
+          <div className="metric-card">
+            <span>Баланс</span>
+            <strong>{stats.walletBalance} монет</strong>
+          </div>
+          <div className="metric-card">
+            <span>Штраф за пропуск</span>
+            <strong>{stats.moneyEnabled ? `${stats.penalty} монет` : 'выключен'}</strong>
           </div>
         </div>
         <div className="recommendation-box">

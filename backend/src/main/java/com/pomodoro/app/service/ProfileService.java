@@ -1,10 +1,11 @@
 package com.pomodoro.app.service;
 
 import com.pomodoro.app.dto.ProfileDtos;
+import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.Goal;
 import com.pomodoro.app.entity.GoalCommitment;
-import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.User;
+import com.pomodoro.app.entity.UserWallet;
 import com.pomodoro.app.enums.GoalStatus;
 import com.pomodoro.app.enums.RiskStatus;
 import com.pomodoro.app.exception.AppException;
@@ -14,10 +15,7 @@ import com.pomodoro.app.repository.GoalRepository;
 import com.pomodoro.app.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -42,6 +40,7 @@ public class ProfileService {
   private final FocusSessionRepository focusSessionRepository;
   private final GoalCommitmentService goalCommitmentService;
   private final StorageService storageService;
+  private final WalletService walletService;
 
   public ProfileService(
       UserRepository userRepository,
@@ -49,25 +48,30 @@ public class ProfileService {
       GoalCommitmentRepository goalCommitmentRepository,
       FocusSessionRepository focusSessionRepository,
       GoalCommitmentService goalCommitmentService,
-      StorageService storageService) {
+      StorageService storageService,
+      WalletService walletService) {
     this.userRepository = userRepository;
     this.goalRepository = goalRepository;
     this.goalCommitmentRepository = goalCommitmentRepository;
     this.focusSessionRepository = focusSessionRepository;
     this.goalCommitmentService = goalCommitmentService;
     this.storageService = storageService;
+    this.walletService = walletService;
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public ProfileDtos.ProfileResponse getProfile(Long userId) {
     User user = loadUser(userId);
-    List<Goal> activeGoals = goalRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE);
+    List<Goal> activeGoals =
+        goalRepository.findByUserIdAndStatusOrderByCreatedAtDesc(userId, GoalStatus.ACTIVE);
     List<Goal> historyGoals =
         goalRepository.findByUserIdAndStatusInOrderByCreatedAtDesc(
             userId, List.of(GoalStatus.COMPLETED, GoalStatus.FAILED));
 
     Map<Long, GoalCommitment> latestCommitments = latestCommitmentsByGoal(userId);
-    List<FocusSession> allSessions = focusSessionRepository.findByGoalUserIdOrderByStartedAtDesc(userId);
+    List<FocusSession> allSessions =
+        focusSessionRepository.findByGoalUserIdOrderByStartedAtDesc(userId);
+    UserWallet wallet = walletService.getOrCreateWallet(userId);
 
     List<ProfileDtos.ProfileGoalItem> activeGoalItems = new ArrayList<>();
     for (Goal goal : activeGoals) {
@@ -84,6 +88,10 @@ public class ProfileService {
               today.remainingMinutesToday(),
               commitment != null ? commitment.getDisciplineScore() : null,
               commitment != null ? commitment.getRiskStatus() : null,
+              commitment != null ? commitment.getMoneyEnabled() : false,
+              commitment != null ? commitment.getDailyPenaltyAmount() : 0,
+              commitment != null ? commitment.getTotalPenaltyCharged() : 0,
+              commitment != null ? commitment.getMoneyStatus().name() : "DISABLED",
               goal.getCreatedAt()));
     }
 
@@ -99,6 +107,9 @@ public class ProfileService {
                         goal.getCreatedAt(),
                         goal.getCompletedAt(),
                         goal.getClosedAt(),
+                        Optional.ofNullable(latestCommitments.get(goal.getId()))
+                            .map(GoalCommitment::getTotalPenaltyCharged)
+                            .orElse(0),
                         goal.getStatus() == GoalStatus.FAILED))
             .toList();
 
@@ -111,11 +122,16 @@ public class ProfileService {
         user.getFullName(),
         user.getAvatarPath(),
         stats,
+        new ProfileDtos.ProfileWalletResponse(
+            wallet.getBalance(),
+            wallet.getInitialBalance(),
+            wallet.getTotalPenalties(),
+            wallet.getStatus()),
         activeGoalItems,
         historyItems);
   }
 
-  @Transactional(readOnly = true)
+  @Transactional
   public ProfileDtos.ProfileGoalsResponse getProfileGoals(Long userId) {
     ProfileDtos.ProfileResponse profile = getProfile(userId);
     return new ProfileDtos.ProfileGoalsResponse(profile.activeGoals(), profile.goalHistory());
@@ -158,10 +174,15 @@ public class ProfileService {
             .filter(java.util.Objects::nonNull)
             .mapToInt(Integer::intValue)
             .sum();
-    long completedGoalsCount = historyGoals.stream().filter(goal -> goal.getStatus() == GoalStatus.COMPLETED).count();
-    long failedGoalsCount = historyGoals.stream().filter(goal -> goal.getStatus() == GoalStatus.FAILED).count();
+    long completedGoalsCount =
+        historyGoals.stream().filter(goal -> goal.getStatus() == GoalStatus.COMPLETED).count();
+    long failedGoalsCount =
+        historyGoals.stream().filter(goal -> goal.getStatus() == GoalStatus.FAILED).count();
     int bestStreak =
-        latestCommitments.values().stream().map(GoalCommitment::getBestStreak).max(Integer::compareTo).orElse(0);
+        latestCommitments.values().stream()
+            .map(GoalCommitment::getBestStreak)
+            .max(Integer::compareTo)
+            .orElse(0);
     List<Integer> disciplineScores =
         latestCommitments.values().stream().map(GoalCommitment::getDisciplineScore).toList();
     Double averageDiscipline =
@@ -171,7 +192,9 @@ public class ProfileService {
                     disciplineScores.stream().mapToInt(Integer::intValue).average().orElse(0))
                 .setScale(1, RoundingMode.HALF_UP)
                 .doubleValue();
-    RiskStatus riskSummary = summarizeRisk(latestCommitments.values().stream().map(GoalCommitment::getRiskStatus).toList());
+    RiskStatus riskSummary =
+        summarizeRisk(
+            latestCommitments.values().stream().map(GoalCommitment::getRiskStatus).toList());
 
     return new ProfileDtos.ProfileStatsResponse(
         activeGoals.size(),
@@ -195,7 +218,8 @@ public class ProfileService {
 
   private Map<Long, GoalCommitment> latestCommitmentsByGoal(Long userId) {
     Map<Long, GoalCommitment> result = new HashMap<>();
-    List<GoalCommitment> commitments = goalCommitmentRepository.findByUserIdOrderByCreatedAtDesc(userId);
+    List<GoalCommitment> commitments =
+        goalCommitmentRepository.findByUserIdOrderByCreatedAtDesc(userId);
     for (GoalCommitment commitment : commitments) {
       result.putIfAbsent(commitment.getGoal().getId(), commitment);
     }
@@ -210,11 +234,17 @@ public class ProfileService {
       throw new AppException(HttpStatus.BAD_REQUEST, "Аватар слишком большой. Допустимо до 3 МБ.");
     }
     String contentType = file.getContentType();
-    if (contentType == null || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
-      throw new AppException(HttpStatus.BAD_REQUEST, "Аватар должен быть в формате JPG, PNG или WEBP.");
+    if (contentType == null
+        || !ALLOWED_AVATAR_TYPES.contains(contentType.toLowerCase(Locale.ROOT))) {
+      throw new AppException(
+          HttpStatus.BAD_REQUEST, "Аватар должен быть в формате JPG, PNG или WEBP.");
     }
-    String originalName = file.getOriginalFilename() == null ? "" : file.getOriginalFilename().toLowerCase(Locale.ROOT);
-    String extension = originalName.contains(".") ? originalName.substring(originalName.lastIndexOf('.') + 1) : "";
+    String originalName =
+        file.getOriginalFilename() == null
+            ? ""
+            : file.getOriginalFilename().toLowerCase(Locale.ROOT);
+    String extension =
+        originalName.contains(".") ? originalName.substring(originalName.lastIndexOf('.') + 1) : "";
     if (!ALLOWED_AVATAR_EXTENSIONS.contains(extension)) {
       throw new AppException(HttpStatus.BAD_REQUEST, "Недопустимое расширение файла аватара.");
     }

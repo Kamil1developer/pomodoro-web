@@ -7,7 +7,8 @@ const { apiMock } = vi.hoisted(() => ({
   apiMock: {
     getProfile: vi.fn(),
     updateProfile: vi.fn(),
-    uploadAvatar: vi.fn()
+    uploadAvatar: vi.fn(),
+    getWalletTransactions: vi.fn()
   }
 }));
 
@@ -30,6 +31,12 @@ const profileResponse = {
     averageDiscipline: 77.5,
     riskSummary: 'LOW'
   },
+  wallet: {
+    balance: 950,
+    initialBalance: 1000,
+    totalPenalties: 50,
+    status: 'ACTIVE'
+  },
   activeGoals: [
     {
       goalId: 11,
@@ -41,6 +48,10 @@ const profileResponse = {
       remainingMinutesToday: 40,
       disciplineScore: 80,
       riskStatus: 'LOW',
+      moneyEnabled: true,
+      dailyPenaltyAmount: 50,
+      totalPenaltyCharged: 50,
+      moneyStatus: 'ACTIVE',
       createdAt: '2026-01-01T00:00:00Z'
     }
   ],
@@ -53,6 +64,7 @@ const profileResponse = {
       createdAt: '2026-01-01T00:00:00Z',
       completedAt: null,
       closedAt: '2026-02-01T00:00:00Z',
+      totalPenaltyCharged: 50,
       loserBadge: true
     }
   ]
@@ -64,6 +76,20 @@ describe('ProfilePage', () => {
     apiMock.getProfile.mockResolvedValue(profileResponse);
     apiMock.updateProfile.mockResolvedValue(profileResponse);
     apiMock.uploadAvatar.mockResolvedValue({ ...profileResponse, avatarPath: '/uploads/avatars/test.png' });
+    apiMock.getWalletTransactions.mockResolvedValue({
+      transactions: [
+        {
+          id: 1,
+          type: 'INITIAL_GRANT',
+          amount: 1000,
+          balanceBefore: 0,
+          balanceAfter: 1000,
+          reason: 'Стартовый баланс',
+          goalTitle: null,
+          createdAt: '2026-01-01T00:00:00Z'
+        }
+      ]
+    });
   });
 
   it('renders profile tab content', async () => {

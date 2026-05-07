@@ -1,5 +1,6 @@
 package com.pomodoro.app.entity;
 
+import com.pomodoro.app.enums.CommitmentMoneyStatus;
 import com.pomodoro.app.enums.CommitmentStatus;
 import com.pomodoro.app.enums.RiskStatus;
 import jakarta.persistence.*;
@@ -59,6 +60,22 @@ public class GoalCommitment {
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
   private RiskStatus riskStatus;
+
+  @Column(nullable = false)
+  private Integer depositAmount = 0;
+
+  @Column(nullable = false)
+  private Integer dailyPenaltyAmount = 0;
+
+  @Column(nullable = false)
+  private Integer totalPenaltyCharged = 0;
+
+  @Column(nullable = false)
+  private Boolean moneyEnabled = false;
+
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
+  private CommitmentMoneyStatus moneyStatus = CommitmentMoneyStatus.DISABLED;
 
   @Column(nullable = false)
   private OffsetDateTime createdAt;
@@ -192,6 +209,46 @@ public class GoalCommitment {
 
   public void setRiskStatus(RiskStatus riskStatus) {
     this.riskStatus = riskStatus;
+  }
+
+  public Integer getDepositAmount() {
+    return depositAmount;
+  }
+
+  public void setDepositAmount(Integer depositAmount) {
+    this.depositAmount = depositAmount;
+  }
+
+  public Integer getDailyPenaltyAmount() {
+    return dailyPenaltyAmount;
+  }
+
+  public void setDailyPenaltyAmount(Integer dailyPenaltyAmount) {
+    this.dailyPenaltyAmount = dailyPenaltyAmount;
+  }
+
+  public Integer getTotalPenaltyCharged() {
+    return totalPenaltyCharged;
+  }
+
+  public void setTotalPenaltyCharged(Integer totalPenaltyCharged) {
+    this.totalPenaltyCharged = totalPenaltyCharged;
+  }
+
+  public Boolean getMoneyEnabled() {
+    return moneyEnabled;
+  }
+
+  public void setMoneyEnabled(Boolean moneyEnabled) {
+    this.moneyEnabled = moneyEnabled;
+  }
+
+  public CommitmentMoneyStatus getMoneyStatus() {
+    return moneyStatus;
+  }
+
+  public void setMoneyStatus(CommitmentMoneyStatus moneyStatus) {
+    this.moneyStatus = moneyStatus;
   }
 
   public OffsetDateTime getCreatedAt() {

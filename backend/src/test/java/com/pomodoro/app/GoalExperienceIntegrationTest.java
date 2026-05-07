@@ -11,12 +11,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.pomodoro.app.entity.FocusSession;
 import com.pomodoro.app.entity.GoalCommitment;
 import com.pomodoro.app.entity.Report;
+import com.pomodoro.app.entity.UserWallet;
 import com.pomodoro.app.enums.CommitmentStatus;
 import com.pomodoro.app.enums.RiskStatus;
+import com.pomodoro.app.enums.WalletStatus;
 import com.pomodoro.app.repository.FocusSessionRepository;
 import com.pomodoro.app.repository.GoalCommitmentRepository;
 import com.pomodoro.app.repository.GoalRepository;
 import com.pomodoro.app.repository.ReportRepository;
+import com.pomodoro.app.repository.UserWalletRepository;
+import com.pomodoro.app.repository.WalletTransactionRepository;
 import com.pomodoro.app.service.GoalCommitmentService;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -36,6 +40,10 @@ class GoalExperienceIntegrationTest extends IntegrationTestSupport {
   @Autowired private GoalRepository goalRepository;
 
   @Autowired private ReportRepository reportRepository;
+
+  @Autowired private UserWalletRepository userWalletRepository;
+
+  @Autowired private WalletTransactionRepository walletTransactionRepository;
 
   @Test
   void createCommitmentForGoalShouldWork() throws Exception {
@@ -299,6 +307,90 @@ class GoalExperienceIntegrationTest extends IntegrationTestSupport {
         .andExpect(status().isNotFound());
   }
 
+  @Test
+  void walletShouldBeCreatedForNewUser() throws Exception {
+    Tokens tokens = registerUser("wallet-created@test.dev", "password123");
+
+    mockMvc
+        .perform(get("/api/wallet").header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.balance").value(1000))
+        .andExpect(jsonPath("$.initialBalance").value(1000))
+        .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+    mockMvc
+        .perform(
+            get("/api/wallet/transactions").header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.transactions[*].type", hasItems("INITIAL_GRANT")));
+  }
+
+  @Test
+  void missedMoneyCommitmentShouldChargePenaltyAndCreateTransaction() throws Exception {
+    Tokens tokens = registerUser("wallet-penalty@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal wallet penalty");
+    createMoneyCommitment(
+        tokens.accessToken(),
+        goalId,
+        30,
+        LocalDate.now().minusDays(2),
+        LocalDate.now().plusDays(10),
+        300,
+        50);
+
+    LocalDate missedDate = LocalDate.now().minusDays(1);
+    goalCommitmentService.processPreviousDay(missedDate);
+
+    Long ownerId = goalRepository.findById(goalId).orElseThrow().getUser().getId();
+    UserWallet wallet = userWalletRepository.findByUserId(ownerId).orElseThrow();
+    GoalCommitment commitment =
+        goalCommitmentRepository
+            .findByGoalIdAndUserIdAndStatus(goalId, ownerId, CommitmentStatus.ACTIVE)
+            .orElseThrow();
+
+    assertThat(wallet.getBalance()).isEqualTo(950);
+    assertThat(wallet.getTotalPenalties()).isEqualTo(50);
+    assertThat(wallet.getStatus()).isEqualTo(WalletStatus.ACTIVE);
+    assertThat(commitment.getTotalPenaltyCharged()).isEqualTo(50);
+    assertThat(walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(ownerId))
+        .anyMatch(
+            transaction ->
+                transaction.getType().name().equals("DAILY_PENALTY")
+                    && transaction.getAmount() == 50
+                    && transaction.getBalanceAfter() == 950);
+  }
+
+  @Test
+  void penaltyShouldNotMakeWalletNegative() throws Exception {
+    Tokens tokens = registerUser("wallet-empty@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal wallet empty");
+    createMoneyCommitment(
+        tokens.accessToken(),
+        goalId,
+        30,
+        LocalDate.now().minusDays(2),
+        LocalDate.now().plusDays(10),
+        1500,
+        1500);
+
+    LocalDate missedDate = LocalDate.now().minusDays(1);
+    goalCommitmentService.processPreviousDay(missedDate);
+
+    Long ownerId = goalRepository.findById(goalId).orElseThrow().getUser().getId();
+    UserWallet wallet = userWalletRepository.findByUserId(ownerId).orElseThrow();
+    GoalCommitment commitment =
+        goalCommitmentRepository
+            .findByGoalIdAndUserIdAndStatus(goalId, ownerId, CommitmentStatus.ACTIVE)
+            .orElseThrow();
+
+    assertThat(wallet.getBalance()).isZero();
+    assertThat(wallet.getStatus()).isEqualTo(WalletStatus.EMPTY);
+    assertThat(commitment.getTotalPenaltyCharged()).isEqualTo(1000);
+    assertThat(commitment.getMoneyStatus().name()).isEqualTo("EMPTY");
+    assertThat(walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(ownerId))
+        .anyMatch(transaction -> transaction.getType().name().equals("ACCOUNT_LOCKED"));
+  }
+
   private void createTask(String accessToken, Long goalId, String title) throws Exception {
     mockMvc
         .perform(
@@ -338,6 +430,42 @@ class GoalExperienceIntegrationTest extends IntegrationTestSupport {
                     }
                     """
                         .formatted(dailyTargetMinutes, startDate, endDate)))
+        .andExpect(status().isOk());
+  }
+
+  private void createMoneyCommitment(
+      String accessToken,
+      Long goalId,
+      int dailyTargetMinutes,
+      LocalDate startDate,
+      LocalDate endDate,
+      int depositAmount,
+      int dailyPenaltyAmount)
+      throws Exception {
+    mockMvc
+        .perform(
+            post("/api/goals/{goalId}/commitment", goalId)
+                .header("Authorization", bearer(accessToken))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "dailyTargetMinutes": %d,
+                      "startDate": "%s",
+                      "endDate": "%s",
+                      "personalRewardTitle": "Награда",
+                      "personalRewardDescription": "Описание награды",
+                      "moneyEnabled": true,
+                      "depositAmount": %d,
+                      "dailyPenaltyAmount": %d
+                    }
+                    """
+                        .formatted(
+                            dailyTargetMinutes,
+                            startDate,
+                            endDate,
+                            depositAmount,
+                            dailyPenaltyAmount)))
         .andExpect(status().isOk());
   }
 

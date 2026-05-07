@@ -44,8 +44,24 @@ public class MockAiService implements AiService {
     String risk = extractValue(systemPrompt, "riskStatus:");
     String reportStatus = extractValue(systemPrompt, "reportStatusToday:");
     String nextAction = extractValue(systemPrompt, "nextRecommendedAction:");
+    String walletBalance = extractValue(systemPrompt, "walletBalance:");
+    String dailyPenalty = extractValue(systemPrompt, "dailyPenaltyAmount:");
+    String penaltyWarning = extractValue(systemPrompt, "nextPenaltyWarning:");
     String fullName = extractValue(systemPrompt, "fullName:");
     String greeting = fullName.isBlank() ? "Смотрите" : fullName + ", смотрите";
+
+    if (containsAny(userText, "деньги", "баланс", "штраф", "монет")) {
+      return greeting
+          + ": виртуальный баланс сейчас "
+          + safeValue(walletBalance, "не рассчитан")
+          + " монет, штраф за пропуск — "
+          + safeValue(dailyPenalty, "0")
+          + " монет."
+          + "\nЧтобы не потерять деньги сегодня: 1) закройте минимум одну короткую сессию, 2) доведите дневную норму до нуля, 3) отправьте фото-отчёт с доказательством результата."
+          + "\nПодсказка системы: "
+          + safeValue(
+              penaltyWarning, "если день выполнить и подтвердить отчётом, штраф не спишется.");
+    }
 
     if (containsAny(userText, "что мне сделать сегодня", "план", "вечер")) {
       return greeting

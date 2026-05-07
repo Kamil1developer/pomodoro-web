@@ -2,7 +2,7 @@ import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, resolveAssetUrl } from '../lib/apiClient';
 import { minutesToHours, shortDate, shortDateTime } from '../lib/format';
-import type { ProfileGoalHistoryItem, ProfileResponse } from '../types/api';
+import type { ProfileGoalHistoryItem, ProfileResponse, WalletTransaction } from '../types/api';
 
 function riskLabel(value: string | null): string {
   if (value === 'HIGH') {
@@ -27,6 +27,25 @@ function historyStatusLabel(item: ProfileGoalHistoryItem): string {
   return 'Архив';
 }
 
+function transactionLabel(type: WalletTransaction['type']): string {
+  switch (type) {
+    case 'INITIAL_GRANT':
+      return 'Стартовый баланс';
+    case 'DAILY_PENALTY':
+      return 'Штраф за пропуск';
+    case 'GOAL_COMPLETED_REWARD':
+      return 'Награда за цель';
+    case 'ACCOUNT_LOCKED':
+      return 'Баланс закончился';
+    case 'REFUND':
+      return 'Возврат';
+    case 'GOAL_DEPOSIT_LOCKED':
+      return 'Виртуальный залог';
+    default:
+      return 'Корректировка баланса';
+  }
+}
+
 export function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [fullName, setFullName] = useState('');
@@ -35,6 +54,7 @@ export function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
 
   useEffect(() => {
     void loadProfile();
@@ -44,9 +64,13 @@ export function ProfilePage() {
     setLoading(true);
     setError(null);
     try {
-      const data = await api.getProfile();
+      const [data, walletHistory] = await Promise.all([
+        api.getProfile(),
+        api.getWalletTransactions()
+      ]);
       setProfile(data);
       setFullName(data.fullName);
+      setTransactions(walletHistory.transactions);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -90,6 +114,12 @@ export function ProfilePage() {
   }
 
   const history = useMemo(() => profile?.goalHistory ?? [], [profile]);
+  const wallet = profile?.wallet ?? {
+    balance: 0,
+    initialBalance: 0,
+    totalPenalties: 0,
+    status: 'ACTIVE' as const
+  };
 
   if (loading) {
     return <section className="card">Загрузка профиля...</section>;
@@ -135,8 +165,48 @@ export function ProfilePage() {
       </section>
 
       <section className="card">
+        <div className="card-header">
+          <h3>История виртуальных операций</h3>
+          <strong>{transactions.length}</strong>
+        </div>
+        {transactions.length === 0 ? (
+          <p className="muted">Операции появятся после создания кошелька, штрафов или наград.</p>
+        ) : (
+          <div className="wallet-transaction-list">
+            {transactions.slice(0, 8).map((transaction) => (
+              <article key={transaction.id} className="wallet-transaction-item">
+                <div>
+                  <strong>{transactionLabel(transaction.type)}</strong>
+                  <p className="muted">{transaction.reason}</p>
+                  {transaction.goalTitle ? <small>Цель: {transaction.goalTitle}</small> : null}
+                </div>
+                <div className="wallet-transaction-amount">
+                  <strong>{transaction.amount} монет</strong>
+                  <small>
+                    {transaction.balanceBefore} → {transaction.balanceAfter}
+                  </small>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      <section className="card">
         <h3>Сводка пользователя</h3>
         <div className="metric-grid compact-grid">
+          <div className="metric-card">
+            <span>Виртуальный баланс</span>
+            <strong>{wallet.balance} монет</strong>
+          </div>
+          <div className="metric-card">
+            <span>Всего штрафов</span>
+            <strong>{wallet.totalPenalties} монет</strong>
+          </div>
+          <div className="metric-card">
+            <span>Статус кошелька</span>
+            <strong>{wallet.status === 'ACTIVE' ? 'Активен' : 'Баланс закончился'}</strong>
+          </div>
           <div className="metric-card">
             <span>Активные цели</span>
             <strong>{profile.stats.activeGoalsCount}</strong>
@@ -190,6 +260,10 @@ export function ProfilePage() {
                   <span className="chip">Серия: {goal.currentStreak} дн.</span>
                   <span className="chip">Дисциплина: {goal.disciplineScore ?? '—'}/100</span>
                   <span className="chip">Риск: {riskLabel(goal.riskStatus)}</span>
+                  <span className="chip">
+                    Деньги: {goal.moneyEnabled ? `штраф ${goal.dailyPenaltyAmount} монет` : 'выключены'}
+                  </span>
+                  <span className="chip">Списано: {goal.totalPenaltyCharged} монет</span>
                 </div>
                 <div className="inline-actions">
                   <Link className="btn" to={`/goals/${goal.goalId}`}>
@@ -224,6 +298,7 @@ export function ProfilePage() {
                   <span className="chip">Старт: {shortDate(item.createdAt)}</span>
                   {item.completedAt ? <span className="chip">Завершена: {shortDate(item.completedAt)}</span> : null}
                   {item.closedAt ? <span className="chip">Закрыта: {shortDate(item.closedAt)}</span> : null}
+                  <span className="chip">Списано штрафов: {item.totalPenaltyCharged} монет</span>
                 </div>
                 {item.failureReason ? (
                   <div className="failure-reason-box">

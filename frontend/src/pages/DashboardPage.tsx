@@ -11,6 +11,9 @@ interface CommitmentFormState {
   endDate: string;
   personalRewardTitle: string;
   personalRewardDescription: string;
+  moneyEnabled: boolean;
+  depositAmount: string;
+  dailyPenaltyAmount: string;
 }
 
 function createDefaultCommitmentForm(): CommitmentFormState {
@@ -22,7 +25,10 @@ function createDefaultCommitmentForm(): CommitmentFormState {
     startDate: start.toISOString().slice(0, 10),
     endDate: end.toISOString().slice(0, 10),
     personalRewardTitle: '',
-    personalRewardDescription: ''
+    personalRewardDescription: '',
+    moneyEnabled: false,
+    depositAmount: '300',
+    dailyPenaltyAmount: '50'
   };
 }
 
@@ -124,7 +130,10 @@ export function DashboardPage() {
         startDate: form.startDate,
         endDate: form.endDate || undefined,
         personalRewardTitle: form.personalRewardTitle || undefined,
-        personalRewardDescription: form.personalRewardDescription || undefined
+        personalRewardDescription: form.personalRewardDescription || undefined,
+        moneyEnabled: form.moneyEnabled,
+        depositAmount: form.moneyEnabled ? Number(form.depositAmount) : 0,
+        dailyPenaltyAmount: form.moneyEnabled ? Number(form.dailyPenaltyAmount) : 0
       });
       const data = await api.getDashboardExperience();
       setExperiences(data);
@@ -186,6 +195,7 @@ export function DashboardPage() {
                 <span className={`status-badge risk-${(experience.today.riskStatus ?? 'LOW').toLowerCase()}`}>
                   Риск: {riskLabel(experience.today.riskStatus)}
                 </span>
+                <span className="chip">Баланс: {experience.today.walletBalance ?? 0} монет</span>
               </div>
 
               {experience.commitment ? (
@@ -218,6 +228,18 @@ export function DashboardPage() {
                   <div className="metric-card">
                     <span>Прогноз</span>
                     <strong>{forecastLabel(experience.forecast.probabilityLabel)}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Виртуальная ответственность</span>
+                    <strong>
+                      {experience.commitment.moneyEnabled
+                        ? `штраф ${experience.commitment.dailyPenaltyAmount} монет`
+                        : 'выключена'}
+                    </strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Всего списано</span>
+                    <strong>{experience.commitment.totalPenaltyCharged} монет</strong>
                   </div>
                 </div>
               ) : (
@@ -257,6 +279,32 @@ export function DashboardPage() {
                     onChange={(event) => updateForm(experience.goal.id, { personalRewardDescription: event.target.value })}
                     placeholder="Что вы получите после выполнения обязательства"
                   />
+                  <label className="checkbox-row">
+                    <input
+                      type="checkbox"
+                      checked={form.moneyEnabled}
+                      onChange={(event) => updateForm(experience.goal.id, { moneyEnabled: event.target.checked })}
+                    />
+                    Включить виртуальную ответственность
+                  </label>
+                  {form.moneyEnabled ? (
+                    <div className="inline-fields commitment-inline">
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.depositAmount}
+                        onChange={(event) => updateForm(experience.goal.id, { depositAmount: event.target.value })}
+                        placeholder="Виртуальный залог"
+                      />
+                      <input
+                        type="number"
+                        min={1}
+                        value={form.dailyPenaltyAmount}
+                        onChange={(event) => updateForm(experience.goal.id, { dailyPenaltyAmount: event.target.value })}
+                        placeholder="Штраф за пропуск"
+                      />
+                    </div>
+                  ) : null}
                   <button className="btn" type="submit" disabled={savingGoalId === experience.goal.id}>
                     {savingGoalId === experience.goal.id ? 'Сохраняем...' : 'Создать обязательство'}
                   </button>

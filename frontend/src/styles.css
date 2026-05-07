@@ -235,6 +235,26 @@ input[type='color'].goal-color-input::-moz-color-swatch {
   width: 100%;
 }
 
+.sidebar-wallet {
+  display: grid;
+  gap: 0.15rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid #dfe9dc;
+  border-radius: 16px;
+  background: #ffffffa6;
+}
+
+.sidebar-wallet span,
+.sidebar-wallet small {
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.sidebar-wallet strong {
+  color: var(--primary-strong);
+  font-size: 1rem;
+}
+
 .sidebar-collapsed .main-nav {
   display: none;
 }
@@ -554,7 +574,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-summary-card {
   display: grid;
-  gap: 0.9rem;
+  gap: 0.65rem;
+  padding: 1rem;
 }
 
 .motivation-reels-shell {
@@ -562,8 +583,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 }
 
 .motivation-reels {
-  height: calc(100vh - 220px);
-  min-height: 580px;
+  height: calc(100vh - 190px);
+  min-height: 560px;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   display: grid;
@@ -573,7 +594,7 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-reel-section {
   scroll-snap-align: start;
-  min-height: 82vh;
+  min-height: 80vh;
   display: flex;
   align-items: stretch;
   justify-content: center;
@@ -581,7 +602,7 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-reel-card {
   width: min(100%, 620px);
-  min-height: 82vh;
+  min-height: 80vh;
   background: var(--surface-strong);
   border: 1px solid #e8ece1;
   border-radius: 24px;
@@ -990,7 +1011,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 }
 
 .profile-goal-list,
-.profile-history-list {
+.profile-history-list,
+.wallet-transaction-list {
   display: grid;
   gap: 0.9rem;
 }
@@ -1028,6 +1050,27 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .failure-reason-box p {
   margin: 0.35rem 0 0;
+}
+
+.wallet-transaction-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  padding: 0.85rem 0.95rem;
+  border-radius: 14px;
+  border: 1px solid #e7ede1;
+  background: var(--surface);
+}
+
+.wallet-transaction-item p {
+  margin: 0.25rem 0;
+}
+
+.wallet-transaction-amount {
+  text-align: right;
+  display: grid;
+  gap: 0.25rem;
 }
 
 .focus-hero-card {

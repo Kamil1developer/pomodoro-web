@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { api } from '../lib/apiClient';
 import { clearTokens, getTokens } from '../lib/authStorage';
-import type { Goal } from '../types/api';
+import type { Goal, WalletResponse } from '../types/api';
 import type { AppShellContext } from '../types/app';
 import { GoalSelector } from './GoalSelector';
 
@@ -28,6 +28,7 @@ export function AppShell() {
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [wallet, setWallet] = useState<WalletResponse | null>(null);
 
   const reloadGoals = useCallback(async () => {
     setError(null);
@@ -48,10 +49,19 @@ export function AppShell() {
     }
   }, [selectedGoalId]);
 
+  const reloadWallet = useCallback(async () => {
+    try {
+      const data = await api.getWallet();
+      setWallet(data);
+    } catch {
+      setWallet(null);
+    }
+  }, []);
+
   useEffect(() => {
     const run = async () => {
       try {
-        await reloadGoals();
+        await Promise.all([reloadGoals(), reloadWallet()]);
       } catch (err) {
         setError((err as Error).message);
       } finally {
@@ -60,7 +70,7 @@ export function AppShell() {
     };
 
     void run();
-  }, [reloadGoals]);
+  }, [reloadGoals, reloadWallet]);
 
   const setSelectedGoalId = useCallback((goalId: number | null) => {
     setSelectedGoalIdState(goalId);
@@ -144,6 +154,13 @@ export function AppShell() {
           Pomodoro Web
         </Link>
         <p className="brand-subtitle">Goal Experience: фокус, отчёты, streak и мотивация в одной цели</p>
+        <div className="sidebar-wallet">
+          <span>Виртуальный баланс</span>
+          <strong>{wallet ? `${wallet.balance} монет` : '—'}</strong>
+          {wallet?.status === 'EMPTY' || wallet?.status === 'LOCKED' ? (
+            <small>Режим ответственности требует перезапуска цели</small>
+          ) : null}
+        </div>
 
         <button className="btn btn-ghost sidebar-toggle" onClick={toggleNav} type="button">
           {isNavCollapsed ? 'Развернуть вкладки' : 'Свернуть вкладки'}
