@@ -62,20 +62,20 @@ public class GoalCommitment {
   private RiskStatus riskStatus;
 
   @Column(nullable = false)
-  private Integer depositAmount = 0;
+  private Integer depositAmount = 300;
 
   @Column(nullable = false)
-  private Integer dailyPenaltyAmount = 0;
+  private Integer dailyPenaltyAmount = 10;
 
   @Column(nullable = false)
   private Integer totalPenaltyCharged = 0;
 
   @Column(nullable = false)
-  private Boolean moneyEnabled = false;
+  private Boolean moneyEnabled = true;
 
   @Enumerated(EnumType.STRING)
   @Column(nullable = false)
-  private CommitmentMoneyStatus moneyStatus = CommitmentMoneyStatus.DISABLED;
+  private CommitmentMoneyStatus moneyStatus = CommitmentMoneyStatus.ACTIVE;
 
   @Column(nullable = false)
   private OffsetDateTime createdAt;

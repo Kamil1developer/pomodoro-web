@@ -37,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class GoalCommitmentService {
   public static final ZoneId APPLICATION_ZONE = ZoneId.systemDefault();
   private static final int DEFAULT_DAILY_REPORT_PENALTY = 10;
+  private static final int DEFAULT_COMMITMENT_DEPOSIT = 300;
 
   private final GoalCommitmentRepository goalCommitmentRepository;
   private final GoalRepository goalRepository;
@@ -83,10 +84,13 @@ public class GoalCommitmentService {
                   "Для этой цели уже существует активное ежедневное обязательство.");
             });
 
-    boolean moneyEnabled = Boolean.TRUE.equals(request.moneyEnabled());
-    int depositAmount = request.depositAmount() == null ? 0 : request.depositAmount();
+    boolean moneyEnabled = request.moneyEnabled() == null || Boolean.TRUE.equals(request.moneyEnabled());
+    int depositAmount =
+        request.depositAmount() == null ? DEFAULT_COMMITMENT_DEPOSIT : request.depositAmount();
     int dailyPenaltyAmount =
-        request.dailyPenaltyAmount() == null ? 0 : request.dailyPenaltyAmount();
+        request.dailyPenaltyAmount() == null
+            ? DEFAULT_DAILY_REPORT_PENALTY
+            : request.dailyPenaltyAmount();
     if (moneyEnabled) {
       if (dailyPenaltyAmount <= 0) {
         throw new AppException(
@@ -463,12 +467,12 @@ public class GoalCommitmentService {
     boolean completed = targetReached && approved;
     UserWallet wallet = walletService.getOrCreateWallet(goal.getUser().getId());
     Integer walletBalance = wallet.getBalance();
-    Integer dailyPenaltyAmount = commitment != null ? commitment.getDailyPenaltyAmount() : null;
-    Integer depositAmount = commitment != null ? commitment.getDepositAmount() : null;
+    Integer dailyPenaltyAmount = effectiveDailyPenaltyAmount(commitment);
+    Integer depositAmount = commitment != null ? commitment.getDepositAmount() : DEFAULT_COMMITMENT_DEPOSIT;
     Integer totalPenaltyCharged = commitment != null ? commitment.getTotalPenaltyCharged() : null;
-    Boolean moneyEnabled = commitment != null ? commitment.getMoneyEnabled() : false;
+    Boolean moneyEnabled = true;
     CommitmentMoneyStatus moneyStatus =
-        commitment != null ? commitment.getMoneyStatus() : CommitmentMoneyStatus.DISABLED;
+        commitment != null ? effectiveMoneyStatus(commitment) : CommitmentMoneyStatus.ACTIVE;
     String nextPenaltyWarning =
         Boolean.TRUE.equals(moneyEnabled) && dailyPenaltyAmount != null && dailyPenaltyAmount > 0
             ? "Если сегодня не выполнить цель, будет списано %d виртуальных монет."
@@ -677,13 +681,29 @@ public class GoalCommitmentService {
         commitment.getPersonalRewardDescription(),
         commitment.getRewardUnlocked(),
         commitment.getRiskStatus(),
-        commitment.getMoneyEnabled(),
-        commitment.getDepositAmount(),
-        commitment.getDailyPenaltyAmount(),
+        true,
+        commitment.getDepositAmount() == null ? DEFAULT_COMMITMENT_DEPOSIT : commitment.getDepositAmount(),
+        effectiveDailyPenaltyAmount(commitment),
         commitment.getTotalPenaltyCharged(),
-        commitment.getMoneyStatus(),
+        effectiveMoneyStatus(commitment),
         commitment.getCreatedAt(),
         commitment.getUpdatedAt());
+  }
+
+  private Integer effectiveDailyPenaltyAmount(GoalCommitment commitment) {
+    if (commitment == null
+        || commitment.getDailyPenaltyAmount() == null
+        || commitment.getDailyPenaltyAmount() <= 0) {
+      return DEFAULT_DAILY_REPORT_PENALTY;
+    }
+    return commitment.getDailyPenaltyAmount();
+  }
+
+  private CommitmentMoneyStatus effectiveMoneyStatus(GoalCommitment commitment) {
+    if (commitment == null || commitment.getMoneyStatus() == CommitmentMoneyStatus.DISABLED) {
+      return CommitmentMoneyStatus.ACTIVE;
+    }
+    return commitment.getMoneyStatus();
   }
 
   private void applyDailyPenaltyIfNeeded(

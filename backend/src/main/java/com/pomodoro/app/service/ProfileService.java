@@ -88,10 +88,10 @@ public class ProfileService {
               today.remainingMinutesToday(),
               commitment != null ? commitment.getDisciplineScore() : null,
               commitment != null ? commitment.getRiskStatus() : null,
-              commitment != null ? commitment.getMoneyEnabled() : false,
-              commitment != null ? commitment.getDailyPenaltyAmount() : 0,
+              today.moneyEnabled(),
+              today.dailyPenaltyAmount() == null ? 10 : today.dailyPenaltyAmount(),
               commitment != null ? commitment.getTotalPenaltyCharged() : 0,
-              commitment != null ? commitment.getMoneyStatus().name() : "DISABLED",
+              today.moneyStatus() != null ? today.moneyStatus().name() : "ACTIVE",
               goal.getCreatedAt()));
     }
 

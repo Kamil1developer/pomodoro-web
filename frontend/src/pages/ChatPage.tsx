@@ -142,9 +142,7 @@ export function ChatPage() {
             <span className="chip">Дисциплина: {experience.today.disciplineScore ?? 0}/100</span>
             <span className="chip">Риск: {experience.today.riskStatus ?? 'Не рассчитан'}</span>
             <span className="chip">Баланс: {experience.today.walletBalance ?? 0} монет</span>
-            <span className="chip">
-              Штраф: {experience.today.moneyEnabled ? `${experience.today.dailyPenaltyAmount ?? 0} монет` : 'выключен'}
-            </span>
+            <span className="chip">Штраф: {experience.today.dailyPenaltyAmount ?? 10} монет</span>
           </div>
         ) : null}
         <div className="chat-box" ref={scrollRef}>

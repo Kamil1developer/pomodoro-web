@@ -261,9 +261,7 @@ export function ProfilePage() {
                   <span className="chip">Серия: {goal.currentStreak} дн.</span>
                   <span className="chip">Дисциплина: {goal.disciplineScore ?? '—'}/100</span>
                   <span className="chip">Риск: {riskLabel(goal.riskStatus)}</span>
-                  <span className="chip">
-                    Деньги: {goal.moneyEnabled ? `штраф ${goal.dailyPenaltyAmount} монет` : 'выключены'}
-                  </span>
+                  <span className="chip">Деньги: штраф {goal.dailyPenaltyAmount ?? 10} монет</span>
                   <span className="chip">Списано: {goal.totalPenaltyCharged} монет</span>
                 </div>
                 <div className="inline-actions">

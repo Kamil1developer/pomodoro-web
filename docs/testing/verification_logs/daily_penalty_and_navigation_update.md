@@ -102,3 +102,46 @@ Successfully applied 1 migration to schema "public", now at version v7
 - Docker Compose поднялся.
 - Backend стартовал и применил миграцию V7.
 - Timezone backend-контейнера установлен в MSK.
+
+## Дополнительная проверка: включение штрафов по умолчанию
+
+Дата проверки: 2026-05-08
+
+Изменения:
+
+- Добавлена миграция `V8__enable_default_goal_penalties.sql`.
+- Для существующих `goal_commitments` штрафы включаются автоматически.
+- Для новых обязательств виртуальная ответственность включена по умолчанию.
+- В UI больше не показывается текст `выключен` / `выключена` для штрафа.
+- Если у цели ещё нет commitment, Goal Experience всё равно показывает дефолтный штраф `10 монет`, потому что ежедневная report-проверка применима ко всем активным целям.
+
+Команды:
+
+```bash
+docker run --rm -v "$PWD/backend":/app -w /app maven:3.9.9-eclipse-temurin-21 mvn -q test
+```
+
+Результат: успешно.
+
+```bash
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm-install.log && npm run build'
+```
+
+Результат: успешно.
+
+```bash
+docker run --rm -v "$PWD/frontend":/app -w /app node:22-alpine sh -lc 'npm install >/tmp/npm-install.log && npm run test:run -- ProfilePage'
+```
+
+Результат: успешно. `3 tests passed`.
+
+```bash
+docker compose up -d --build
+```
+
+Результат: успешно. Flyway применил V8:
+
+```text
+Migrating schema "public" to version "8 - enable default goal penalties"
+Successfully applied 1 migration to schema "public", now at version v8
+```

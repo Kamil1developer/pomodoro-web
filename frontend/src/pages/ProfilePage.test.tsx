@@ -49,7 +49,7 @@ const profileResponse = {
       disciplineScore: 80,
       riskStatus: 'LOW',
       moneyEnabled: true,
-      dailyPenaltyAmount: 50,
+      dailyPenaltyAmount: 10,
       totalPenaltyCharged: 50,
       moneyStatus: 'ACTIVE',
       createdAt: '2026-01-01T00:00:00Z'

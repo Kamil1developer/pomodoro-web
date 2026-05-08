@@ -26,9 +26,9 @@ function createDefaultCommitmentForm(): CommitmentFormState {
     endDate: end.toISOString().slice(0, 10),
     personalRewardTitle: '',
     personalRewardDescription: '',
-    moneyEnabled: false,
+    moneyEnabled: true,
     depositAmount: '300',
-    dailyPenaltyAmount: '50'
+    dailyPenaltyAmount: '10'
   };
 }
 
@@ -232,9 +232,7 @@ export function DashboardPage() {
                   <div className="metric-card">
                     <span>Виртуальная ответственность</span>
                     <strong>
-                      {experience.commitment.moneyEnabled
-                        ? `штраф ${experience.commitment.dailyPenaltyAmount} монет`
-                        : 'выключена'}
+                      штраф {experience.commitment.dailyPenaltyAmount ?? 10} монет
                     </strong>
                   </div>
                   <div className="metric-card">

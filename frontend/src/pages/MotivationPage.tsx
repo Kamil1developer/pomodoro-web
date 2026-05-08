@@ -401,8 +401,7 @@ export function MotivationPage() {
       risk: experience?.today.riskStatus ?? 'Не рассчитан',
       remainingMinutes: experience?.today.remainingMinutesToday ?? 0,
       walletBalance: experience?.today.walletBalance ?? 0,
-      penalty: experience?.today.dailyPenaltyAmount ?? 0,
-      moneyEnabled: Boolean(experience?.today.moneyEnabled)
+      penalty: experience?.today.dailyPenaltyAmount ?? 10
     }),
     [experience]
   );
@@ -460,7 +459,7 @@ export function MotivationPage() {
               </div>
               <div className="metric-card">
                 <span>Штраф за пропуск</span>
-                <strong>{stats.moneyEnabled ? `${stats.penalty} монет` : 'выключен'}</strong>
+                <strong>{stats.penalty} монет</strong>
               </div>
             </div>
             <div className="recommendation-box motivation-summary-details">
