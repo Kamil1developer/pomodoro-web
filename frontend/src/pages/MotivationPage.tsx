@@ -76,7 +76,7 @@ function pickMotivationQuote(
   goalDescription: string | null | undefined,
   quoteIndex: number
 ): string {
-  const candidates = [quoteIndex === 0 ? quoteText : null];
+  const candidates = [image.displayQuote, quoteIndex === 0 ? quoteText : null, image.caption];
   for (const candidate of candidates) {
     const value = cleanMotivationText(candidate, goalTitle, goalDescription);
     if (value) {
@@ -277,6 +277,9 @@ export function MotivationPage() {
           images: feedData.images.filter((image) => !hiddenIds.has(image.id))
         });
         setExperience(experienceData);
+        if (showRefreshState) {
+          setSuccessMessage(feedData.refreshMessage);
+        }
         scrollRef.current?.scrollTo({ top: 0, behavior: showRefreshState ? 'smooth' : 'auto' });
       } catch (err) {
         setError((err as Error).message);
@@ -487,7 +490,10 @@ export function MotivationPage() {
         <section className="motivation-reels-shell">
           <div className="motivation-reels" ref={scrollRef} data-testid="motivation-feed">
             {images.map((image, index) => (
-              <div key={image.id} className="motivation-reel-section">
+              <div
+                key={`${image.id}-${feed?.refreshSessionId ?? 'initial'}-${feed?.feedVersion ?? 0}-${index}`}
+                className="motivation-reel-section"
+              >
                 <MotivationCard
                   image={image}
                   quoteText={quote?.quoteTextRu || quote?.quoteText}

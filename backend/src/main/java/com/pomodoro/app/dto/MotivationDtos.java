@@ -31,7 +31,12 @@ public class MotivationDtos {
       String quoteDate) {}
 
   public record FeedRefreshResponse(
-      java.util.List<MotivationResponse> images, java.util.List<DailyQuoteResponse> quotes) {}
+      java.util.List<MotivationResponse> images,
+      java.util.List<DailyQuoteResponse> quotes,
+      String refreshSessionId,
+      Integer feedVersion,
+      OffsetDateTime generatedAt,
+      String refreshMessage) {}
 
   public record FavoriteRequest(Boolean isFavorite) {}
 
@@ -41,11 +46,18 @@ public class MotivationDtos {
       String title,
       String description,
       String caption,
+      String displayQuote,
       String goalReason,
       OffsetDateTime createdAt) {}
 
   public record MotivationFeedResponse(
-      List<MotivationImageResponse> images, DailyQuoteResponse quote, String recommendation) {}
+      List<MotivationImageResponse> images,
+      DailyQuoteResponse quote,
+      String recommendation,
+      String refreshSessionId,
+      Integer feedVersion,
+      OffsetDateTime generatedAt,
+      String refreshMessage) {}
 
   public record ReportMotivationImageRequest(
       @NotNull MotivationImageReportReason reason, @Size(max = 1000) String comment) {}

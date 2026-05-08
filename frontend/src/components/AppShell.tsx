@@ -171,7 +171,7 @@ export function AppShell() {
             Обзор
           </NavLink>
           <NavLink to="/control">Цель</NavLink>
-          <NavLink to="/focus">Фокус</NavLink>
+          <NavLink to="/focus">Сегодня</NavLink>
           <NavLink to="/motivation">Мотивация</NavLink>
           <NavLink to="/chat">Мотиватор</NavLink>
           <NavLink to="/stats">Статистика</NavLink>

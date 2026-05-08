@@ -12,19 +12,60 @@ function formatElapsed(totalSeconds: number): string {
   return `${hours}:${minutes}:${seconds}`;
 }
 
-function reportImpactText(report: ReportItem): string {
+function localDateIso(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function reportStatusLabel(report: ReportItem | null): string {
+  if (!report) {
+    return 'Нет отчёта';
+  }
   switch (report.status) {
     case 'CONFIRMED':
-      return 'Подтверждённый отчёт помогает засчитать день.';
+      return 'Отчёт принят';
     case 'REJECTED':
-      return 'Отклонённый отчёт не засчитывает день, пока вы не исправите подтверждение.';
+      return 'Отчёт отклонён';
     case 'PENDING':
-      return 'AI просит больше данных. День ещё не подтверждён.';
+      return 'Ожидает AI-проверки';
     case 'OVERDUE':
-      return 'Просроченный отчёт больше не может подтвердить прошлый день.';
+      return 'Отчёт отклонён';
     default:
-      return '';
+      return 'Нет отчёта';
   }
+}
+
+function reportStatusText(report: ReportItem | null): string {
+  if (!report) {
+    return 'Отчёт за сегодня ещё не отправлен. Если день закончится без принятого отчёта, будет списан штраф.';
+  }
+  switch (report.status) {
+    case 'CONFIRMED':
+      return 'Отчёт принят. Штраф за сегодня не будет списан.';
+    case 'REJECTED':
+      return 'Отчёт отклонён. До конца дня можно отправить новый отчёт.';
+    case 'PENDING':
+      return 'Отчёт отправлен и ожидает AI-проверки.';
+    case 'OVERDUE':
+      return 'Отчёт отклонён. До конца дня можно отправить новый отчёт.';
+    default:
+      return 'Отчёт за сегодня ещё не отправлен. Если день закончится без принятого отчёта, будет списан штраф.';
+  }
+}
+
+function reportStatusClass(report: ReportItem | null): string {
+  if (!report) {
+    return 'status-badge';
+  }
+  if (report.status === 'CONFIRMED') {
+    return 'status-badge risk-low';
+  }
+  if (report.status === 'REJECTED' || report.status === 'OVERDUE') {
+    return 'status-badge risk-high';
+  }
+  return 'status-badge risk-medium';
 }
 
 export function FocusPage() {
@@ -56,6 +97,18 @@ export function FocusPage() {
     }).length;
   }, [tasks]);
   const hasTodayTasks = todayTasksCount > 0;
+  const todayReport = useMemo(() => {
+    const today = localDateIso();
+    return (
+      reports
+        .filter((report) => report.reportDate === today)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0] ??
+      null
+    );
+  }, [reports]);
+  const canSubmitReport =
+    hasTodayTasks &&
+    (!todayReport || todayReport.status === 'REJECTED' || todayReport.status === 'OVERDUE');
 
   useEffect(() => {
     if (!activeSession) {
@@ -233,7 +286,7 @@ export function FocusPage() {
           </div>
           <div className="metric-card">
             <span>Статус отчёта</span>
-            <strong>{experience?.today.reportStatusToday ?? 'Нет отчёта'}</strong>
+            <strong>{reportStatusLabel(todayReport)}</strong>
           </div>
         </div>
         <p className="muted">{experience?.today.motivationalMessage}</p>
@@ -307,46 +360,59 @@ export function FocusPage() {
       </section>
 
       <section className="card">
-        <h3>AI-проверка отчёта</h3>
+        <div className="card-header">
+          <h3>Отчёт за сегодня</h3>
+          <span className={reportStatusClass(todayReport)}>{reportStatusLabel(todayReport)}</span>
+        </div>
+        <p className="muted">Загрузите фото выполненной работы. Система проверит отчёт с помощью AI.</p>
+        <p className={todayReport?.status === 'CONFIRMED' ? 'success-note' : 'warning-note'}>
+          {reportStatusText(todayReport)}
+        </p>
         {!hasTodayTasks ? (
           <p className="warning-note">
             Без задач на сегодня AI-проверка недоступна. Добавьте задачу дня и отправьте отчёт снова.
           </p>
         ) : null}
-        <form className="stack" onSubmit={submitReport}>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
-            required
-          />
-          <textarea
-            value={reportComment}
-            onChange={(event) => setReportComment(event.target.value)}
-            placeholder="Комментарий к отчёту"
-            rows={3}
-          />
-          <button className="btn" type="submit" disabled={!reportFile || !hasTodayTasks}>
-            Отправить на AI-проверку
-          </button>
-        </form>
+        {canSubmitReport ? (
+          <form className="stack" onSubmit={submitReport}>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
+              required
+            />
+            <textarea
+              value={reportComment}
+              onChange={(event) => setReportComment(event.target.value)}
+              placeholder="Комментарий к отчёту"
+              rows={3}
+            />
+            <button className="btn" type="submit" disabled={!reportFile || !hasTodayTasks}>
+              Отправить на AI-проверку
+            </button>
+          </form>
+        ) : null}
 
-        <div className="report-list">
-          {reports.map((report) => (
-            <article key={report.id} className="report-card">
-              <img src={resolveAssetUrl(report.imagePath)} alt={`Отчёт ${report.reportDate}`} className="report-preview" />
-              <div className="stack">
-                <strong>
-                  {report.status} · {report.aiVerdict ?? 'Без verdict'}
-                </strong>
-                <small className="muted">{shortDateTime(report.createdAt)}</small>
-                <span>Уверенность AI: {report.aiConfidence != null ? `${Math.round(report.aiConfidence * 100)}%` : 'н/д'}</span>
-                <p>{report.aiExplanation ?? 'Без пояснения AI.'}</p>
-                <small className="muted">{reportImpactText(report)}</small>
-              </div>
-            </article>
-          ))}
-        </div>
+        {todayReport ? (
+          <article className="report-card today-report-card">
+            <img
+              src={resolveAssetUrl(todayReport.imagePath)}
+              alt="Отчёт за сегодня"
+              className="report-preview"
+            />
+            <div className="stack">
+              <strong>
+                {reportStatusLabel(todayReport)} · {todayReport.aiVerdict ?? 'AI проверяет'}
+              </strong>
+              <small className="muted">{shortDateTime(todayReport.createdAt)}</small>
+              <span>
+                Уверенность AI:{' '}
+                {todayReport.aiConfidence != null ? `${Math.round(todayReport.aiConfidence * 100)}%` : 'н/д'}
+              </span>
+              <p>{todayReport.aiExplanation ?? 'AI ещё не добавил пояснение.'}</p>
+            </div>
+          </article>
+        ) : null}
       </section>
 
       {loading ? <section className="card">Обновление данных...</section> : null}

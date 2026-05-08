@@ -47,6 +47,7 @@ export type GoalEventType =
   | 'REWARD_UNLOCKED'
   | 'AI_RECOMMENDATION_CREATED'
   | 'MONEY_PENALTY_CHARGED'
+  | 'MONEY_PENALTY_SKIPPED'
   | 'MONEY_EMPTY';
 
 export interface TokenResponse {
@@ -207,6 +208,7 @@ export interface MotivationImageItem {
   title: string;
   description: string | null;
   caption: string | null;
+  displayQuote: string | null;
   goalReason: string | null;
   createdAt: string;
 }
@@ -229,6 +231,10 @@ export interface MotivationFeedResponse {
   images: MotivationImageItem[];
   quote: MotivationQuote;
   recommendation: string;
+  refreshSessionId: string;
+  feedVersion: number;
+  generatedAt: string;
+  refreshMessage: string | null;
 }
 
 export interface ReportMotivationImageRequest {

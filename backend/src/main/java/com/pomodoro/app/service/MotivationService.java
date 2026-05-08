@@ -27,8 +27,12 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
@@ -275,6 +279,7 @@ public class MotivationService {
   private final UserRepository userRepository;
   private final GoalCommitmentService goalCommitmentService;
   private final WebClient webImageWebClient;
+  private final Map<String, FeedRefreshState> feedRefreshStates = new ConcurrentHashMap<>();
 
   public MotivationService(
       GoalService goalService,
@@ -343,27 +348,43 @@ public class MotivationService {
 
   public MotivationDtos.FeedRefreshResponse refreshFeed(Long userId, Long goalId) {
     Goal goal = goalService.ownedGoal(userId, goalId);
-    ensureFeedCards(goal, DEFAULT_FEED_LIMIT);
+    ensureFeedCards(goal, DEFAULT_FEED_LIMIT + 6);
+    FeedRefreshState state = nextFeedRefreshState(userId, goal.getId());
     return new MotivationDtos.FeedRefreshResponse(
-        listByGoal(goal, OffsetDateTime.now()), pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE));
+        listByGoal(goal, OffsetDateTime.now()),
+        pickFeedQuotes(goal, FEED_QUOTE_BATCH_SIZE),
+        state.refreshSessionId(),
+        state.feedVersion(),
+        state.generatedAt(),
+        "Новые изображения временно не найдены, мы обновили порядок и цитаты.");
   }
 
   public MotivationDtos.MotivationFeedResponse getMotivationFeed(
       Long userId, Long goalId, Integer limit) {
     Goal goal = resolveGoalForFeed(userId, goalId);
     int normalizedLimit = normalizeLimit(limit);
+    FeedRefreshState state = currentFeedRefreshState(userId, goal.getId());
     ensureDailyQuoteForGoal(goal, LocalDate.now());
     Set<Long> excludedImageIds =
         motivationImageFeedbackRepository.findByUserId(userId).stream()
             .map(feedback -> feedback.getImage().getId())
             .collect(Collectors.toSet());
     ensureFeedCards(goal, normalizedLimit + excludedImageIds.size());
-    List<MotivationDtos.MotivationImageResponse> images =
-        selectFeedImages(goal, excludedImageIds, normalizedLimit);
-    if (images.size() < normalizedLimit) {
+    List<MotivationImage> selectedImages =
+        selectFeedImageEntities(goal, excludedImageIds, normalizedLimit, state);
+    if (selectedImages.size() < normalizedLimit) {
       ensureFeedCards(goal, normalizedLimit + excludedImageIds.size() + 6);
-      images = selectFeedImages(goal, excludedImageIds, normalizedLimit);
+      selectedImages = selectFeedImageEntities(goal, excludedImageIds, normalizedLimit, state);
     }
+    List<Long> selectedIds = selectedImages.stream().map(MotivationImage::getId).toList();
+    FeedRefreshState updatedState = state.withPreviousImageIds(Set.copyOf(selectedIds));
+    feedRefreshStates.put(feedKey(userId, goal.getId()), updatedState);
+    boolean reusedPrevious =
+        state.feedVersion() > 0
+            && !state.previousImageIds().isEmpty()
+            && selectedIds.stream().anyMatch(state.previousImageIds()::contains);
+    List<MotivationDtos.MotivationImageResponse> images =
+        toFeedImageResponses(goal, selectedImages, updatedState.feedVersion());
 
     GoalExperienceDtos.TodayStatusResponse todayStatus = null;
     try {
@@ -377,7 +398,13 @@ public class MotivationService {
         getOrCreateDailyQuote(goal, LocalDate.now()),
         todayStatus != null
             ? todayStatus.nextRecommendedAction()
-            : "Сделайте хотя бы одну фокус-сессию и подготовьте доказательство результата по цели.");
+            : "Сделайте хотя бы одну фокус-сессию и подготовьте доказательство результата по цели.",
+        updatedState.refreshSessionId(),
+        updatedState.feedVersion(),
+        updatedState.generatedAt(),
+        reusedPrevious
+            ? "Новые изображения временно не найдены, мы обновили порядок и цитаты."
+            : null);
   }
 
   public MotivationDtos.FeedbackResponse markImageNotInteresting(Long userId, Long imageId) {
@@ -456,18 +483,78 @@ public class MotivationService {
     return Math.max(1, Math.min(limit, 20));
   }
 
-  private List<MotivationDtos.MotivationImageResponse> selectFeedImages(
-      Goal goal, Set<Long> excludedImageIds, int limit) {
-    return motivationImageRepository
-        .findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(detectTheme(goal).name())
-        .stream()
-        .filter(image -> !excludedImageIds.contains(image.getId()))
-        .filter(image -> image.getReportCount() < GLOBAL_REPORT_THRESHOLD)
-        .filter(image -> isDisplayableImageUrl(image.getImagePath()))
-        .sorted(Comparator.comparing(MotivationImage::getCreatedAt).reversed())
-        .limit(limit)
-        .map(image -> toFeedImageResponse(goal, image))
-        .toList();
+  private List<MotivationImage> selectFeedImageEntities(
+      Goal goal, Set<Long> excludedImageIds, int limit, FeedRefreshState state) {
+    List<MotivationImage> pool =
+        motivationImageRepository
+            .findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(detectTheme(goal).name())
+            .stream()
+            .filter(image -> !excludedImageIds.contains(image.getId()))
+            .filter(image -> image.getReportCount() < GLOBAL_REPORT_THRESHOLD)
+            .filter(image -> isDisplayableImageUrl(image.getImagePath()))
+            .toList();
+
+    List<MotivationImage> ordered = new ArrayList<>(pool);
+    if (state.feedVersion() <= 0) {
+      return ordered.stream()
+          .sorted(Comparator.comparing(MotivationImage::getCreatedAt).reversed())
+          .limit(limit)
+          .toList();
+    }
+
+    Collections.shuffle(ordered, new Random(state.seed()));
+    if (state.previousImageIds().isEmpty()) {
+      return ordered.stream().limit(limit).toList();
+    }
+
+    List<MotivationImage> fresh =
+        ordered.stream()
+            .filter(image -> !state.previousImageIds().contains(image.getId()))
+            .collect(Collectors.toCollection(ArrayList::new));
+    if (fresh.size() >= limit) {
+      return fresh.stream().limit(limit).toList();
+    }
+    LinkedHashSet<MotivationImage> combined = new LinkedHashSet<>(fresh);
+    combined.addAll(ordered);
+    return combined.stream().limit(limit).toList();
+  }
+
+  private List<MotivationDtos.MotivationImageResponse> toFeedImageResponses(
+      Goal goal, List<MotivationImage> images, int feedVersion) {
+    List<MotivationDtos.MotivationImageResponse> responses = new ArrayList<>();
+    for (int i = 0; i < images.size(); i++) {
+      responses.add(toFeedImageResponse(goal, images.get(i), i, feedVersion));
+    }
+    return responses;
+  }
+
+  private String feedKey(Long userId, Long goalId) {
+    return userId + ":" + goalId;
+  }
+
+  private FeedRefreshState currentFeedRefreshState(Long userId, Long goalId) {
+    return feedRefreshStates.computeIfAbsent(
+        feedKey(userId, goalId),
+        ignored ->
+            new FeedRefreshState(
+                UUID.randomUUID().toString(),
+                0,
+                OffsetDateTime.now(),
+                ThreadLocalRandom.current().nextLong(),
+                Set.of()));
+  }
+
+  private FeedRefreshState nextFeedRefreshState(Long userId, Long goalId) {
+    FeedRefreshState current = currentFeedRefreshState(userId, goalId);
+    FeedRefreshState next =
+        new FeedRefreshState(
+            UUID.randomUUID().toString(),
+            current.feedVersion() + 1,
+            OffsetDateTime.now(),
+            ThreadLocalRandom.current().nextLong(),
+            current.previousImageIds());
+    feedRefreshStates.put(feedKey(userId, goalId), next);
+    return next;
   }
 
   private void ensureFeedCards(Goal goal, int limit) {
@@ -753,15 +840,42 @@ public class MotivationService {
   }
 
   private MotivationDtos.MotivationImageResponse toFeedImageResponse(
-      Goal goal, MotivationImage image) {
+      Goal goal, MotivationImage image, int cardIndex, int feedVersion) {
     return new MotivationDtos.MotivationImageResponse(
         image.getId(),
         image.getImagePath(),
         sanitizeFeedTitle(image.getTitle(), goal),
         sanitizeFeedDescription(image.getDescription(), goal),
         buildCaption(goal, image),
+        buildDisplayQuote(goal, cardIndex, feedVersion),
         buildGoalReason(goal, image),
         image.getCreatedAt());
+  }
+
+  private String buildDisplayQuote(Goal goal, int cardIndex, int feedVersion) {
+    List<String> pool = displayQuotePool(goal);
+    if (pool.isEmpty()) {
+      return "Сделай ещё один маленький шаг сегодня — именно так цель становится реальностью.";
+    }
+    int index = Math.floorMod(feedVersion * 3 + cardIndex, pool.size());
+    return pool.get(index);
+  }
+
+  private List<String> displayQuotePool(Goal goal) {
+    LinkedHashSet<String> quotes = new LinkedHashSet<>();
+    pickQuotePool(goal).stream().map(QuoteItem::textRu).forEach(quotes::add);
+    fallbackTemplates(goal).stream().map(FallbackCardTemplate::caption).forEach(quotes::add);
+    quotes.add("Не жди идеального настроения: начни с одного короткого действия.");
+    quotes.add("Маленький честный шаг сегодня сильнее большого обещания на завтра.");
+    quotes.add("Фокус на ближайшие 25 минут важнее тревоги обо всём пути.");
+    quotes.add("Дисциплина — это возвращение к цели после каждой паузы.");
+    quotes.add("Результат растёт там, где действия повторяются достаточно долго.");
+    quotes.add("Сделай видимый прогресс и зафиксируй его отчётом.");
+    quotes.add("Одна завершённая сессия лучше десяти отложенных планов.");
+    quotes.add("Не нужно делать идеально — нужно продолжать достаточно регулярно.");
+    quotes.add("Сегодняшний темп держится на одном следующем действии.");
+    quotes.add("Когда цель большая, уменьши шаг, но не останавливай движение.");
+    return List.copyOf(quotes);
   }
 
   private boolean isDisplayableImageUrl(String imageUrl) {
@@ -1067,6 +1181,18 @@ public class MotivationService {
 
   private record ImageCandidate(
       String imageUrl, String sourceUrl, String title, String description, String query) {}
+
+  private record FeedRefreshState(
+      String refreshSessionId,
+      int feedVersion,
+      OffsetDateTime generatedAt,
+      long seed,
+      Set<Long> previousImageIds) {
+    FeedRefreshState withPreviousImageIds(Set<Long> nextPreviousImageIds) {
+      return new FeedRefreshState(
+          refreshSessionId, feedVersion, generatedAt, seed, nextPreviousImageIds);
+    }
+  }
 
   private record FallbackCardTemplate(String title, String description, String caption) {
     private String slug() {
