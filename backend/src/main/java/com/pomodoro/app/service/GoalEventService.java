@@ -70,6 +70,11 @@ public class GoalEventService {
         commitmentId, List.of(GoalEventType.DAY_COMPLETED, GoalEventType.DAY_MISSED), dateKey);
   }
 
+  @Transactional(readOnly = true)
+  public boolean hasGoalEvent(Long goalId, GoalEventType type, String dateKey) {
+    return goalEventRepository.existsByGoalIdAndTypeAndNewValue(goalId, type, dateKey);
+  }
+
   public GoalExperienceDtos.GoalEventResponse toResponse(GoalEvent event) {
     return new GoalExperienceDtos.GoalEventResponse(
         event.getId(),

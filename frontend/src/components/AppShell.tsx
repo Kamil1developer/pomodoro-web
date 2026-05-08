@@ -168,9 +168,9 @@ export function AppShell() {
 
         <nav className="main-nav">
           <NavLink to="/" end>
-            Dashboard
+            Обзор
           </NavLink>
-          <NavLink to="/control">Контроль</NavLink>
+          <NavLink to="/control">Цель</NavLink>
           <NavLink to="/focus">Фокус</NavLink>
           <NavLink to="/motivation">Мотивация</NavLink>
           <NavLink to="/chat">Мотиватор</NavLink>

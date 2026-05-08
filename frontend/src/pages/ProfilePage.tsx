@@ -179,6 +179,7 @@ export function ProfilePage() {
                   <strong>{transactionLabel(transaction.type)}</strong>
                   <p className="muted">{transaction.reason}</p>
                   {transaction.goalTitle ? <small>Цель: {transaction.goalTitle}</small> : null}
+                  {transaction.penaltyDate ? <small>День штрафа: {shortDate(transaction.penaltyDate)}</small> : null}
                 </div>
                 <div className="wallet-transaction-amount">
                   <strong>{transaction.amount} монет</strong>
@@ -244,7 +245,7 @@ export function ProfilePage() {
           <strong>{profile.activeGoals.length}</strong>
         </div>
         {profile.activeGoals.length === 0 ? (
-          <p className="muted">Сейчас нет активных целей. Создайте новую цель в разделе «Контроль».</p>
+          <p className="muted">Сейчас нет активных целей. Создайте новую цель в разделе «Цель».</p>
         ) : (
           <div className="profile-goal-list">
             {profile.activeGoals.map((goal) => (

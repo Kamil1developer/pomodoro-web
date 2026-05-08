@@ -13,4 +13,6 @@ public interface GoalEventRepository extends JpaRepository<GoalEvent, Long> {
 
   boolean existsByCommitmentIdAndTypeInAndNewValue(
       Long commitmentId, Collection<GoalEventType> types, String newValue);
+
+  boolean existsByGoalIdAndTypeAndNewValue(Long goalId, GoalEventType type, String newValue);
 }

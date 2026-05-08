@@ -12,7 +12,9 @@ import com.pomodoro.app.exception.AppException;
 import com.pomodoro.app.repository.UserRepository;
 import com.pomodoro.app.repository.UserWalletRepository;
 import com.pomodoro.app.repository.WalletTransactionRepository;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -59,6 +61,7 @@ public class WalletService {
                   DEFAULT_INITIAL_BALANCE,
                   0,
                   DEFAULT_INITIAL_BALANCE,
+                  null,
                   "Стартовый баланс для виртуальной ответственности.");
               return saved;
             });
@@ -80,6 +83,33 @@ public class WalletService {
   @Transactional
   public WalletTransaction chargeDailyPenalty(
       Long userId, Goal goal, GoalCommitment commitment, int amount, String reason) {
+    return chargeDailyPenalty(userId, goal, commitment, amount, null, reason);
+  }
+
+  @Transactional
+  public Optional<WalletTransaction> chargeDailyPenaltyIfAbsent(
+      Long userId,
+      Goal goal,
+      GoalCommitment commitment,
+      int amount,
+      LocalDate penaltyDate,
+      String reason) {
+    if (penaltyDate != null
+        && goal != null
+        && walletTransactionRepository.existsByGoalIdAndTypeAndPenaltyDate(
+            goal.getId(), WalletTransactionType.DAILY_PENALTY, penaltyDate)) {
+      return Optional.empty();
+    }
+    return Optional.of(chargeDailyPenalty(userId, goal, commitment, amount, penaltyDate, reason));
+  }
+
+  private WalletTransaction chargeDailyPenalty(
+      Long userId,
+      Goal goal,
+      GoalCommitment commitment,
+      int amount,
+      LocalDate penaltyDate,
+      String reason) {
     UserWallet wallet = getOrCreateWallet(userId);
     int normalizedAmount = Math.max(amount, 0);
     int balanceBefore = wallet.getBalance();
@@ -101,6 +131,7 @@ public class WalletService {
             chargedAmount,
             balanceBefore,
             balanceAfter,
+            penaltyDate,
             reason);
 
     if (balanceAfter == 0 && balanceBefore > 0) {
@@ -112,6 +143,7 @@ public class WalletService {
           0,
           balanceAfter,
           balanceAfter,
+          null,
           "Баланс виртуальной ответственности закончился.");
     }
     return transaction;
@@ -133,6 +165,7 @@ public class WalletService {
       int amount,
       int balanceBefore,
       int balanceAfter,
+      LocalDate penaltyDate,
       String reason) {
     WalletTransaction transaction = new WalletTransaction();
     transaction.setUser(wallet.getUser());
@@ -143,6 +176,7 @@ public class WalletService {
     transaction.setAmount(Math.max(amount, 0));
     transaction.setBalanceBefore(Math.max(balanceBefore, 0));
     transaction.setBalanceAfter(Math.max(balanceAfter, 0));
+    transaction.setPenaltyDate(penaltyDate);
     transaction.setReason(reason);
     transaction.setCreatedAt(OffsetDateTime.now());
     return walletTransactionRepository.save(transaction);
@@ -169,6 +203,7 @@ public class WalletService {
         transaction.getBalanceAfter(),
         transaction.getReason(),
         transaction.getGoal() != null ? transaction.getGoal().getTitle() : null,
+        transaction.getPenaltyDate(),
         transaction.getCreatedAt());
   }
 

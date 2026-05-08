@@ -35,6 +35,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class GoalCommitmentService {
+  public static final ZoneId APPLICATION_ZONE = ZoneId.systemDefault();
+  private static final int DEFAULT_DAILY_REPORT_PENALTY = 10;
+
   private final GoalCommitmentRepository goalCommitmentRepository;
   private final GoalRepository goalRepository;
   private final GoalService goalService;
@@ -263,129 +266,179 @@ public class GoalCommitmentService {
   @Transactional
   public void processPreviousDay(LocalDate date) {
     OffsetDateTime eventTimestamp =
-        date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
+        date.plusDays(1).atStartOfDay(APPLICATION_ZONE).toOffsetDateTime();
     for (GoalCommitment commitment :
         goalCommitmentRepository.findByStatus(CommitmentStatus.ACTIVE)) {
-      if (date.isBefore(commitment.getStartDate())) {
-        continue;
-      }
-      if (goalEventService.hasProcessedDay(commitment.getId(), date.toString())) {
-        continue;
-      }
+      processCommitmentDay(commitment, date, eventTimestamp);
+    }
+  }
+
+  @Transactional
+  public void processPreviousDaysThrough(LocalDate lastDate) {
+    for (GoalCommitment commitment :
+        goalCommitmentRepository.findByStatus(CommitmentStatus.ACTIVE)) {
       Goal goal = commitment.getGoal();
-      int focusMinutes = focusMinutesForDate(goal.getId(), date);
-      ReportStatus reportStatus = resolveReportStatus(goal.getId(), date);
-      boolean confirmedReport = reportStatus == ReportStatus.CONFIRMED;
-      boolean completedDay = focusMinutes >= commitment.getDailyTargetMinutes() && confirmedReport;
-
-      int previousStreak = commitment.getCurrentStreak();
-      int previousScore = commitment.getDisciplineScore();
-      RiskStatus previousRisk = commitment.getRiskStatus();
-
-      if (completedDay) {
-        commitment.setCompletedDays(commitment.getCompletedDays() + 1);
-        commitment.setCurrentStreak(commitment.getCurrentStreak() + 1);
-        commitment.setBestStreak(
-            Math.max(commitment.getBestStreak(), commitment.getCurrentStreak()));
-        commitment.setDisciplineScore(Math.min(100, commitment.getDisciplineScore() + 3));
-        goalEventService.createEvent(
-            goal,
-            commitment,
-            GoalEventType.DAY_COMPLETED,
-            "День засчитан",
-            "За %s выполнена дневная норма и подтверждён фото-отчёт.".formatted(date),
-            null,
-            date.toString(),
-            eventTimestamp);
-      } else {
-        commitment.setMissedDays(commitment.getMissedDays() + 1);
-        commitment.setCurrentStreak(0);
-        commitment.setDisciplineScore(Math.max(0, commitment.getDisciplineScore() - 10));
-        goalEventService.createEvent(
-            goal,
-            commitment,
-            GoalEventType.DAY_MISSED,
-            "День пропущен",
-            "За %s день не был засчитан: %s."
-                .formatted(date, missedDayReason(focusMinutes, commitment, reportStatus)),
-            null,
-            date.toString(),
-            eventTimestamp);
-        applyDailyPenaltyIfNeeded(commitment, goal, date, eventTimestamp);
+      LocalDate startDate =
+          maxDate(
+              commitment.getStartDate(),
+              goal.getCreatedAt().atZoneSameInstant(APPLICATION_ZONE).toLocalDate().plusDays(1));
+      for (LocalDate date = startDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+        OffsetDateTime eventTimestamp =
+            date.plusDays(1).atStartOfDay(APPLICATION_ZONE).toOffsetDateTime();
+        processCommitmentDay(commitment, date, eventTimestamp);
       }
+    }
+  }
 
-      RiskStatus recalculatedRisk =
-          calculateRiskStatus(commitment.getDisciplineScore(), commitment.getMissedDays());
-      commitment.setRiskStatus(recalculatedRisk);
-      commitment.setUpdatedAt(OffsetDateTime.now());
-      goal.setCurrentStreak(commitment.getCurrentStreak());
-
-      if (previousStreak != commitment.getCurrentStreak()) {
-        goalEventService.createEvent(
-            goal,
-            commitment,
-            GoalEventType.STREAK_UPDATED,
-            "Серия обновлена",
-            "Текущая серия изменена после закрытия дня.",
-            String.valueOf(previousStreak),
-            String.valueOf(commitment.getCurrentStreak()),
-            eventTimestamp);
+  @Transactional
+  public void processReportPenaltiesForActiveGoalsThrough(LocalDate lastDate) {
+    for (Goal goal : goalRepository.findAll()) {
+      if (goal.getStatus() != GoalStatus.ACTIVE) {
+        continue;
       }
-
-      if (previousScore != commitment.getDisciplineScore()) {
-        goalEventService.createEvent(
-            goal,
-            commitment,
-            GoalEventType.DISCIPLINE_SCORE_CHANGED,
-            "Изменился показатель дисциплины",
-            "После закрытия дня пересчитан показатель дисциплины.",
-            String.valueOf(previousScore),
-            String.valueOf(commitment.getDisciplineScore()),
-            eventTimestamp);
-      }
-
-      if (previousRisk != recalculatedRisk) {
-        goalEventService.createEvent(
-            goal,
-            commitment,
-            GoalEventType.RISK_STATUS_CHANGED,
-            "Изменился статус риска",
-            "Статус риска обновлён на основе последних дней выполнения.",
-            previousRisk.name(),
-            recalculatedRisk.name(),
-            eventTimestamp);
-      }
-
-      if (commitment.getEndDate() != null && !date.isBefore(commitment.getEndDate())) {
-        int plannedDays = plannedDays(commitment);
-        int requiredDays = Math.max(1, (int) Math.ceil(plannedDays * 0.7d));
-        if (commitment.getCompletedDays() >= requiredDays
-            && commitment.getRiskStatus() != RiskStatus.HIGH) {
-          if (!Boolean.TRUE.equals(commitment.getRewardUnlocked())) {
-            commitment.setRewardUnlocked(true);
-            goalEventService.createEvent(
-                goal,
-                commitment,
-                GoalEventType.REWARD_UNLOCKED,
-                "Награда разблокирована",
-                rewardDescription(commitment),
-                null,
-                commitment.getPersonalRewardTitle(),
-                eventTimestamp);
-          }
-          commitment.setStatus(CommitmentStatus.COMPLETED);
-          goalService.markCompleted(goal, rewardDescription(commitment));
+      GoalCommitment commitment =
+          latestCommitment(goal.getId(), goal.getUser().getId()).orElse(null);
+      LocalDate startDate =
+          goal.getCreatedAt().atZoneSameInstant(APPLICATION_ZONE).toLocalDate().plusDays(1);
+      for (LocalDate date = startDate; !date.isAfter(lastDate); date = date.plusDays(1)) {
+        ReportStatus reportStatus = resolveReportStatus(goal.getId(), date);
+        OffsetDateTime eventTimestamp =
+            date.plusDays(1).atStartOfDay(APPLICATION_ZONE).toOffsetDateTime();
+        if (reportStatus == ReportStatus.CONFIRMED) {
+          createNoPenaltyEventIfNeeded(goal, commitment, date, eventTimestamp);
         } else {
-          commitment.setStatus(CommitmentStatus.FAILED);
-          goalService.markFailed(
-              goal,
-              "Обязательство завершилось без нужного количества подтверждённых дней или с высоким риском.");
+          applyReportPenaltyIfNeeded(goal, commitment, date, reportStatus, eventTimestamp);
         }
       }
-
-      goalRepository.save(goal);
-      goalCommitmentRepository.save(commitment);
     }
+  }
+
+  private void processCommitmentDay(
+      GoalCommitment commitment, LocalDate date, OffsetDateTime eventTimestamp) {
+    if (date.isBefore(commitment.getStartDate())) {
+      return;
+    }
+    if (goalEventService.hasProcessedDay(commitment.getId(), date.toString())) {
+      return;
+    }
+    Goal goal = commitment.getGoal();
+    int focusMinutes = focusMinutesForDate(goal.getId(), date);
+    ReportStatus reportStatus = resolveReportStatus(goal.getId(), date);
+    boolean confirmedReport = reportStatus == ReportStatus.CONFIRMED;
+    boolean completedDay = focusMinutes >= commitment.getDailyTargetMinutes() && confirmedReport;
+
+    int previousStreak = commitment.getCurrentStreak();
+    int previousScore = commitment.getDisciplineScore();
+    RiskStatus previousRisk = commitment.getRiskStatus();
+
+    if (completedDay) {
+      commitment.setCompletedDays(commitment.getCompletedDays() + 1);
+      commitment.setCurrentStreak(commitment.getCurrentStreak() + 1);
+      commitment.setBestStreak(Math.max(commitment.getBestStreak(), commitment.getCurrentStreak()));
+      commitment.setDisciplineScore(Math.min(100, commitment.getDisciplineScore() + 3));
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.DAY_COMPLETED,
+          "День засчитан",
+          "За %s выполнена дневная норма и подтверждён фото-отчёт. Штраф не применён."
+              .formatted(date),
+          null,
+          date.toString(),
+          eventTimestamp);
+      createNoPenaltyEventIfNeeded(goal, commitment, date, eventTimestamp);
+    } else {
+      commitment.setMissedDays(commitment.getMissedDays() + 1);
+      commitment.setCurrentStreak(0);
+      commitment.setDisciplineScore(Math.max(0, commitment.getDisciplineScore() - 10));
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.DAY_MISSED,
+          "День пропущен",
+          "За %s день не был засчитан: %s."
+              .formatted(date, missedDayReason(focusMinutes, commitment, reportStatus)),
+          null,
+          date.toString(),
+          eventTimestamp);
+      if (confirmedReport) {
+        createNoPenaltyEventIfNeeded(goal, commitment, date, eventTimestamp);
+      } else {
+        applyDailyPenaltyIfNeeded(commitment, goal, date, reportStatus, eventTimestamp);
+      }
+    }
+
+    RiskStatus recalculatedRisk =
+        calculateRiskStatus(commitment.getDisciplineScore(), commitment.getMissedDays());
+    commitment.setRiskStatus(recalculatedRisk);
+    commitment.setUpdatedAt(OffsetDateTime.now());
+    goal.setCurrentStreak(commitment.getCurrentStreak());
+
+    if (previousStreak != commitment.getCurrentStreak()) {
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.STREAK_UPDATED,
+          "Серия обновлена",
+          "Текущая серия изменена после закрытия дня.",
+          String.valueOf(previousStreak),
+          String.valueOf(commitment.getCurrentStreak()),
+          eventTimestamp);
+    }
+
+    if (previousScore != commitment.getDisciplineScore()) {
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.DISCIPLINE_SCORE_CHANGED,
+          "Изменился показатель дисциплины",
+          "После закрытия дня пересчитан показатель дисциплины.",
+          String.valueOf(previousScore),
+          String.valueOf(commitment.getDisciplineScore()),
+          eventTimestamp);
+    }
+
+    if (previousRisk != recalculatedRisk) {
+      goalEventService.createEvent(
+          goal,
+          commitment,
+          GoalEventType.RISK_STATUS_CHANGED,
+          "Изменился статус риска",
+          "Статус риска обновлён на основе последних дней выполнения.",
+          previousRisk.name(),
+          recalculatedRisk.name(),
+          eventTimestamp);
+    }
+
+    if (commitment.getEndDate() != null && !date.isBefore(commitment.getEndDate())) {
+      int plannedDays = plannedDays(commitment);
+      int requiredDays = Math.max(1, (int) Math.ceil(plannedDays * 0.7d));
+      if (commitment.getCompletedDays() >= requiredDays
+          && commitment.getRiskStatus() != RiskStatus.HIGH) {
+        if (!Boolean.TRUE.equals(commitment.getRewardUnlocked())) {
+          commitment.setRewardUnlocked(true);
+          goalEventService.createEvent(
+              goal,
+              commitment,
+              GoalEventType.REWARD_UNLOCKED,
+              "Награда разблокирована",
+              rewardDescription(commitment),
+              null,
+              commitment.getPersonalRewardTitle(),
+              eventTimestamp);
+        }
+        commitment.setStatus(CommitmentStatus.COMPLETED);
+        goalService.markCompleted(goal, rewardDescription(commitment));
+      } else {
+        commitment.setStatus(CommitmentStatus.FAILED);
+        goalService.markFailed(
+            goal,
+            "Обязательство завершилось без нужного количества подтверждённых дней или с высоким риском.");
+      }
+    }
+
+    goalRepository.save(goal);
+    goalCommitmentRepository.save(commitment);
   }
 
   public RiskStatus calculateRiskStatus(int disciplineScore, int missedDays) {
@@ -634,36 +687,83 @@ public class GoalCommitmentService {
   }
 
   private void applyDailyPenaltyIfNeeded(
-      GoalCommitment commitment, Goal goal, LocalDate date, OffsetDateTime eventTimestamp) {
+      GoalCommitment commitment,
+      Goal goal,
+      LocalDate date,
+      ReportStatus reportStatus,
+      OffsetDateTime eventTimestamp) {
     if (!Boolean.TRUE.equals(commitment.getMoneyEnabled())
         || commitment.getMoneyStatus() != CommitmentMoneyStatus.ACTIVE
         || commitment.getDailyPenaltyAmount() == null
         || commitment.getDailyPenaltyAmount() <= 0) {
       return;
     }
+    applyPenalty(
+        goal,
+        commitment,
+        date,
+        commitment.getDailyPenaltyAmount(),
+        penaltyReasonText(reportStatus),
+        eventTimestamp);
+  }
 
-    WalletTransaction transaction =
-        walletService.chargeDailyPenalty(
+  private void applyReportPenaltyIfNeeded(
+      Goal goal,
+      GoalCommitment commitment,
+      LocalDate date,
+      ReportStatus reportStatus,
+      OffsetDateTime eventTimestamp) {
+    int amount =
+        commitment != null
+                && Boolean.TRUE.equals(commitment.getMoneyEnabled())
+                && commitment.getDailyPenaltyAmount() != null
+                && commitment.getDailyPenaltyAmount() > 0
+            ? commitment.getDailyPenaltyAmount()
+            : DEFAULT_DAILY_REPORT_PENALTY;
+    applyPenalty(goal, commitment, date, amount, penaltyReasonText(reportStatus), eventTimestamp);
+  }
+
+  private void applyPenalty(
+      Goal goal,
+      GoalCommitment commitment,
+      LocalDate date,
+      int amount,
+      String reason,
+      OffsetDateTime eventTimestamp) {
+    Optional<WalletTransaction> transactionOptional =
+        walletService.chargeDailyPenaltyIfAbsent(
             goal.getUser().getId(),
             goal,
             commitment,
-            commitment.getDailyPenaltyAmount(),
-            "Штраф за пропущенный день %s по цели «%s».".formatted(date, goal.getTitle()));
-    commitment.setTotalPenaltyCharged(
-        commitment.getTotalPenaltyCharged() + transaction.getAmount());
+            amount,
+            date,
+            "%s — %s, списано %d монет по цели «%s»."
+                .formatted(date, reason, amount, goal.getTitle()));
+    if (transactionOptional.isEmpty()) {
+      return;
+    }
+
+    WalletTransaction transaction = transactionOptional.get();
+    if (commitment != null) {
+      commitment.setTotalPenaltyCharged(
+          commitment.getTotalPenaltyCharged() + transaction.getAmount());
+    }
 
     goalEventService.createEvent(
         goal,
         commitment,
         GoalEventType.MONEY_PENALTY_CHARGED,
         "Списан виртуальный штраф",
-        "За пропущенный день списано %d виртуальных монет.".formatted(transaction.getAmount()),
+        "%s — %s, списано %d виртуальных монет."
+            .formatted(date, reason, transaction.getAmount()),
         String.valueOf(transaction.getBalanceBefore()),
-        String.valueOf(transaction.getBalanceAfter()),
+        date.toString(),
         eventTimestamp);
 
     if (transaction.getBalanceAfter() == 0) {
-      commitment.setMoneyStatus(CommitmentMoneyStatus.EMPTY);
+      if (commitment != null) {
+        commitment.setMoneyStatus(CommitmentMoneyStatus.EMPTY);
+      }
       goalEventService.createEvent(
           goal,
           commitment,
@@ -676,9 +776,38 @@ public class GoalCommitmentService {
     }
   }
 
+  private void createNoPenaltyEventIfNeeded(
+      Goal goal, GoalCommitment commitment, LocalDate date, OffsetDateTime eventTimestamp) {
+    if (goalEventService.hasGoalEvent(
+        goal.getId(), GoalEventType.MONEY_PENALTY_SKIPPED, date.toString())) {
+      return;
+    }
+    goalEventService.createEvent(
+        goal,
+        commitment,
+        GoalEventType.MONEY_PENALTY_SKIPPED,
+        "Штраф не применён",
+        "%s — отчёт принят, виртуальные монеты не списаны.".formatted(date),
+        null,
+        date.toString(),
+        eventTimestamp);
+  }
+
+  private String penaltyReasonText(ReportStatus reportStatus) {
+    if (reportStatus == null) {
+      return "отчёт не отправлен";
+    }
+    return switch (reportStatus) {
+      case CONFIRMED -> "отчёт принят";
+      case REJECTED -> "отчёт отклонён";
+      case PENDING -> "отчёт не подтверждён";
+      case OVERDUE -> "отчёт просрочен";
+    };
+  }
+
   private int focusMinutesForDate(Long goalId, LocalDate date) {
-    OffsetDateTime start = date.atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
-    OffsetDateTime end = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toOffsetDateTime();
+    OffsetDateTime start = date.atStartOfDay(APPLICATION_ZONE).toOffsetDateTime();
+    OffsetDateTime end = date.plusDays(1).atStartOfDay(APPLICATION_ZONE).toOffsetDateTime();
     return focusSessionRepository.findByGoalIdAndStartedAtBetween(goalId, start, end).stream()
         .map(FocusSession::getDurationMinutes)
         .filter(java.util.Objects::nonNull)
@@ -742,5 +871,9 @@ public class GoalCommitmentService {
 
   private Double roundAverage(double value) {
     return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
+  }
+
+  private LocalDate maxDate(LocalDate left, LocalDate right) {
+    return left.isAfter(right) ? left : right;
   }
 }

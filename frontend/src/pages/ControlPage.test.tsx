@@ -47,5 +47,7 @@ describe('ControlPage', () => {
         screen.getByText('Похожая активная цель уже существует: «Выучить английский». Сначала завершите или закройте её.')
       ).toBeTruthy();
     });
+    expect(screen.getByText('Создать цель').closest('section')?.querySelector('.inline-alert')).toBeTruthy();
+    expect(document.querySelector('.error-card')).toBeNull();
   });
 });

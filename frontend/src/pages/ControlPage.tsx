@@ -50,6 +50,7 @@ export function ControlPage() {
   const [experience, setExperience] = useState<GoalExperience | null>(null);
   const [closingFailed, setClosingFailed] = useState(false);
   const [failureReason, setFailureReason] = useState('');
+  const [createGoalError, setCreateGoalError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const createColorStyle = { '--picker-color': createGoalThemeColor } as CSSProperties;
@@ -110,6 +111,8 @@ export function ControlPage() {
     }
 
     try {
+      setCreateGoalError(null);
+      setError(null);
       const created = await api.createGoal({
         title,
         description: String(formData.get('description') ?? '').trim() || undefined,
@@ -122,7 +125,7 @@ export function ControlPage() {
       event.currentTarget.reset();
       setCreateGoalThemeColor('#dff6e5');
     } catch (err) {
-      setError((err as Error).message);
+      setCreateGoalError((err as Error).message);
     }
   }
 
@@ -193,6 +196,7 @@ export function ControlPage() {
     <div className="page-grid control-grid">
       <section className="card">
         <h3>Создать цель</h3>
+        {createGoalError ? <div className="inline-alert">{createGoalError}</div> : null}
         <form className="stack" onSubmit={handleCreateGoal}>
           <input name="title" placeholder="Название цели" required />
           <textarea name="description" placeholder="Описание" rows={3} />

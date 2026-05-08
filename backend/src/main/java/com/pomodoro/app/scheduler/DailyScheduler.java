@@ -9,6 +9,7 @@ import com.pomodoro.app.service.GoalCommitmentService;
 import com.pomodoro.app.service.MotivationService;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -41,9 +42,10 @@ public class DailyScheduler {
     this.goalCommitmentService = goalCommitmentService;
   }
 
-  @Scheduled(cron = "0 5 0 * * *")
+  @Scheduled(cron = "0 0 0 * * *")
   public void closeDay() {
-    LocalDate today = LocalDate.now();
+    ZoneId zone = GoalCommitmentService.APPLICATION_ZONE;
+    LocalDate today = LocalDate.now(zone);
 
     for (Report r : reportRepository.findByStatusAndReportDateBefore(ReportStatus.PENDING, today)) {
       r.setStatus(ReportStatus.OVERDUE);
@@ -84,9 +86,11 @@ public class DailyScheduler {
                           .build()));
     }
 
-    goalCommitmentService.processPreviousDay(today.minusDays(1));
+    LocalDate yesterday = today.minusDays(1);
+    goalCommitmentService.processPreviousDaysThrough(yesterday);
+    goalCommitmentService.processReportPenaltiesForActiveGoalsThrough(yesterday);
 
-    log.info("Daily scheduler executed for {}", today);
+    log.info("Daily scheduler executed for {} in timezone {}", today, zone);
   }
 
   @Scheduled(cron = "0 0 */6 * * *")

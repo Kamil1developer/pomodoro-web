@@ -2,6 +2,7 @@ package com.pomodoro.app.dto;
 
 import com.pomodoro.app.enums.WalletStatus;
 import com.pomodoro.app.enums.WalletTransactionType;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 
@@ -23,6 +24,7 @@ public class WalletDtos {
       Integer balanceAfter,
       String reason,
       String goalTitle,
+      LocalDate penaltyDate,
       OffsetDateTime createdAt) {}
 
   public record WalletTransactionHistoryResponse(List<WalletTransactionResponse> transactions) {}

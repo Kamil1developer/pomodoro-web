@@ -149,7 +149,7 @@ export function DashboardPage() {
     return (
       <section className="empty-state card">
         <h2>Нет активных целей</h2>
-        <p>Создайте первую цель в разделе «Контроль», и dashboard начнет собирать единый сценарий дня.</p>
+        <p>Создайте первую цель в разделе «Цель», и dashboard начнет собирать единый сценарий дня.</p>
       </section>
     );
   }
@@ -159,7 +159,7 @@ export function DashboardPage() {
       <section className="card page-intro">
         <h2>Что нужно сделать сегодня</h2>
         <p>
-          Dashboard объединяет обязательство, Pomodoro, фото-отчет, streak, дисциплину, риск,
+          Обзор объединяет обязательство, Pomodoro, фото-отчет, streak, дисциплину, риск,
           прогноз и мотивацию вокруг каждой вашей цели.
         </p>
       </section>

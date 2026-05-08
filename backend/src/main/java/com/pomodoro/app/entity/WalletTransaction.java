@@ -2,6 +2,7 @@ package com.pomodoro.app.entity;
 
 import com.pomodoro.app.enums.WalletTransactionType;
 import jakarta.persistence.*;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
 @Entity
@@ -42,6 +43,8 @@ public class WalletTransaction {
 
   @Column(length = 1000)
   private String reason;
+
+  private LocalDate penaltyDate;
 
   @Column(nullable = false)
   private OffsetDateTime createdAt;
@@ -124,6 +127,14 @@ public class WalletTransaction {
 
   public void setReason(String reason) {
     this.reason = reason;
+  }
+
+  public LocalDate getPenaltyDate() {
+    return penaltyDate;
+  }
+
+  public void setPenaltyDate(LocalDate penaltyDate) {
+    this.penaltyDate = penaltyDate;
   }
 
   public OffsetDateTime getCreatedAt() {

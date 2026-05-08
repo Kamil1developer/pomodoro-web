@@ -391,6 +391,96 @@ class GoalExperienceIntegrationTest extends IntegrationTestSupport {
         .anyMatch(transaction -> transaction.getType().name().equals("ACCOUNT_LOCKED"));
   }
 
+  @Test
+  void reportPenaltyBackfillShouldChargeMissedExistingGoalOnlyOnce() throws Exception {
+    Tokens tokens = registerUser("wallet-backfill@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal wallet backfill");
+    createMoneyCommitment(
+        tokens.accessToken(),
+        goalId,
+        30,
+        LocalDate.now().minusDays(4),
+        LocalDate.now().plusDays(10),
+        300,
+        50);
+
+    var goal = goalRepository.findById(goalId).orElseThrow();
+    goal.setCreatedAt(
+        LocalDate.now()
+            .minusDays(4)
+            .atTime(10, 0)
+            .atZone(ZoneId.systemDefault())
+            .toOffsetDateTime());
+    goalRepository.save(goal);
+
+    LocalDate yesterday = LocalDate.now().minusDays(1);
+    goalCommitmentService.processReportPenaltiesForActiveGoalsThrough(yesterday);
+    goalCommitmentService.processReportPenaltiesForActiveGoalsThrough(yesterday);
+
+    Long ownerId = goalRepository.findById(goalId).orElseThrow().getUser().getId();
+    UserWallet wallet = userWalletRepository.findByUserId(ownerId).orElseThrow();
+    GoalCommitment commitment =
+        goalCommitmentRepository
+            .findByGoalIdAndUserIdAndStatus(goalId, ownerId, CommitmentStatus.ACTIVE)
+            .orElseThrow();
+
+    assertThat(wallet.getBalance()).isEqualTo(850);
+    assertThat(wallet.getTotalPenalties()).isEqualTo(150);
+    assertThat(commitment.getTotalPenaltyCharged()).isEqualTo(150);
+    assertThat(walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(ownerId).stream()
+            .filter(transaction -> transaction.getType().name().equals("DAILY_PENALTY"))
+            .count())
+        .isEqualTo(3);
+  }
+
+  @Test
+  void acceptedReportShouldSkipDailyPenalty() throws Exception {
+    Tokens tokens = registerUser("wallet-report-accepted@test.dev", "password123");
+    Long goalId = createGoal(tokens.accessToken(), "Goal accepted report penalty");
+    createTask(tokens.accessToken(), goalId, "Сделать тренировку");
+    createMoneyCommitment(
+        tokens.accessToken(),
+        goalId,
+        30,
+        LocalDate.now().minusDays(2),
+        LocalDate.now().plusDays(10),
+        300,
+        50);
+
+    var goal = goalRepository.findById(goalId).orElseThrow();
+    goal.setCreatedAt(
+        LocalDate.now()
+            .minusDays(2)
+            .atTime(10, 0)
+            .atZone(ZoneId.systemDefault())
+            .toOffsetDateTime());
+    goalRepository.save(goal);
+
+    String reportResponse =
+        uploadApprovedReport(tokens.accessToken(), goalId, "сделал тренировку, готово");
+    Report report =
+        reportRepository
+            .findById(objectMapper.readTree(reportResponse).get("id").asLong())
+            .orElseThrow();
+    report.setReportDate(LocalDate.now().minusDays(1));
+    reportRepository.save(report);
+
+    goalCommitmentService.processReportPenaltiesForActiveGoalsThrough(LocalDate.now().minusDays(1));
+
+    Long ownerId = goalRepository.findById(goalId).orElseThrow().getUser().getId();
+    UserWallet wallet = userWalletRepository.findByUserId(ownerId).orElseThrow();
+    assertThat(wallet.getBalance()).isEqualTo(1000);
+    assertThat(walletTransactionRepository.findByUserIdOrderByCreatedAtDesc(ownerId))
+        .noneMatch(transaction -> transaction.getType().name().equals("DAILY_PENALTY"));
+
+    mockMvc
+        .perform(
+            get("/api/goals/{goalId}/events", goalId)
+                .header("Authorization", bearer(tokens.accessToken())))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$[*].type", hasItems("MONEY_PENALTY_SKIPPED")));
+  }
+
   private void createTask(String accessToken, Long goalId, String title) throws Exception {
     mockMvc
         .perform(

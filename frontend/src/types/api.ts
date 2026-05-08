@@ -340,6 +340,7 @@ export interface WalletTransaction {
   balanceAfter: number;
   reason: string;
   goalTitle: string | null;
+  penaltyDate: string | null;
   createdAt: string;
 }
 
