@@ -649,13 +649,13 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 }
 
 .motivation-summary-collapsed .motivation-reels {
-  height: calc(100vh - 76px);
-  min-height: 730px;
+  height: calc(100vh - 78px);
+  min-height: 620px;
 }
 
 .motivation-summary-collapsed .motivation-reel-section {
-  height: 91vh;
-  min-height: 760px;
+  height: 86vh;
+  min-height: 620px;
 }
 
 .motivation-reels-shell {
@@ -663,8 +663,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 }
 
 .motivation-reels {
-  height: calc(100vh - 135px);
-  min-height: 650px;
+  height: calc(100vh - 230px);
+  min-height: 520px;
   overflow-y: auto;
   scroll-snap-type: y mandatory;
   display: grid;
@@ -674,15 +674,15 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-reel-section {
   scroll-snap-align: start;
-  height: 86vh;
-  min-height: 680px;
+  height: min(74vh, 700px);
+  min-height: 520px;
   display: flex;
   align-items: stretch;
   justify-content: center;
 }
 
 .motivation-reel-card {
-  width: min(100%, 620px);
+  width: min(100%, 560px);
   height: 100%;
   background: var(--surface-strong);
   border: 1px solid #e8ece1;
@@ -694,8 +694,9 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 }
 
 .motivation-reel-image-frame {
-  flex: 1 1 auto;
+  flex: 1 1 64%;
   min-height: 0;
+  max-height: calc(100% - 150px);
   background: linear-gradient(160deg, #eff7f0 0%, #f3ebdf 100%);
   overflow: hidden;
 }
@@ -711,14 +712,14 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-reel-body {
   flex: 0 0 auto;
-  padding: 0.9rem 1rem 1rem;
+  padding: 0.72rem 0.85rem 0.85rem;
   display: grid;
-  gap: 0.8rem;
+  gap: 0.58rem;
 }
 
 .motivation-reel-copy {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.32rem;
 }
 
 .motivation-reel-kicker {
@@ -731,8 +732,8 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 
 .motivation-reel-quote {
   margin: 0;
-  font-size: 1.05rem;
-  line-height: 1.42;
+  font-size: 0.98rem;
+  line-height: 1.32;
   font-weight: 700;
 }
 
@@ -746,12 +747,13 @@ input[type='color'].goal-color-input::-moz-color-swatch {
 .motivation-reel-actions {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
+  gap: 0.55rem;
 }
 
 .motivation-reel-actions .btn {
   width: 100%;
-  padding-inline: 0.75rem;
+  padding: 0.58rem 0.65rem;
+  min-height: 42px;
 }
 
 .report-modal {

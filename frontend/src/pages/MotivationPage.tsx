@@ -19,25 +19,6 @@ const REPORT_REASON_OPTIONS: Array<{ value: MotivationImageReportReason; label: 
   { value: 'OTHER', label: 'Другое' }
 ];
 
-const FALLBACK_IMAGE =
-  "data:image/svg+xml;utf8," +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="900" height="1400" viewBox="0 0 900 1400">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#dff6e5" />
-          <stop offset="100%" stop-color="#f4ead8" />
-        </linearGradient>
-      </defs>
-      <rect width="100%" height="100%" fill="url(#bg)" />
-      <circle cx="700" cy="230" r="160" fill="#ffffff55" />
-      <circle cx="220" cy="1120" r="190" fill="#ffffff33" />
-      <text x="80" y="220" fill="#173b35" font-size="54" font-family="Arial, sans-serif" font-weight="700">Pomodoro Web</text>
-      <text x="80" y="300" fill="#35584e" font-size="30" font-family="Arial, sans-serif">Мотивационная карточка временно недоступна</text>
-      <text x="80" y="380" fill="#35584e" font-size="28" font-family="Arial, sans-serif">Обновите ленту или продолжайте движение к цели.</text>
-    </svg>
-  `);
-
 const FALLBACK_QUOTES = [
   'Не жди идеального настроения: начни с одного короткого действия.',
   'Дисциплина начинается там, где ты выбираешь сделать шаг, даже если не хочется.',
@@ -60,6 +41,14 @@ const FALLBACK_QUOTES = [
   'Не сравнивай темп с чужим. Сравни сегодняшний шаг со вчерашней паузой.',
   'Хороший день для цели начинается с маленького выполненного обещания.'
 ];
+
+function buildFallbackPhotoUrl(goalTitle: string, imageId: number, quoteIndex: number): string {
+  const seed =
+    normalizeComparableText(`${goalTitle} ${imageId} ${quoteIndex}`)
+      .replace(/\s+/g, '-')
+      .slice(0, 80) || `pomodoro-${imageId}-${quoteIndex}`;
+  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/1000/1400`;
+}
 
 function sanitizeMotivationTitle(title: string | null | undefined): string {
   const value = (title ?? '').trim();
@@ -198,7 +187,7 @@ function MotivationCard({
   const [imageFailed, setImageFailed] = useState(false);
   const title = cleanMotivationText(image.title, goalTitle, goalDescription) ?? sanitizeMotivationTitle(null);
   const quote = pickMotivationQuote(image, quoteText, goalTitle, goalDescription, quoteIndex);
-  const finalImage = imageFailed ? FALLBACK_IMAGE : resolveAssetUrl(image.imageUrl);
+  const finalImage = imageFailed ? buildFallbackPhotoUrl(goalTitle, image.id, quoteIndex) : resolveAssetUrl(image.imageUrl);
 
   return (
     <article className="motivation-reel-card" data-testid="motivation-card">

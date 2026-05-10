@@ -162,6 +162,35 @@ public class MotivationService {
           "goal achievement consistency mindset",
           "productivity habit building personal growth");
 
+  private static final List<String> SPORT_FALLBACK_PHOTOS =
+      List.of(
+          "https://images.unsplash.com/photo-1517836357463-d25dfeac3438?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1518611012118-696072aa579a?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1526506118085-60ce8714f8c5?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1000&q=85");
+  private static final List<String> STUDY_FALLBACK_PHOTOS =
+      List.of(
+          "https://images.unsplash.com/photo-1513258496099-48168024aec0?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1456513080510-7bf3a84b82f8?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1497633762265-9d179a990aa6?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1503676260728-1c00da094a0b?auto=format&fit=crop&w=1000&q=85");
+  private static final List<String> CODE_FALLBACK_PHOTOS =
+      List.of(
+          "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1498050108023-c5249f4df085?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1531482615713-2afd69097998?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1461749280684-dccba630e2f6?auto=format&fit=crop&w=1000&q=85");
+  private static final List<String> GENERAL_FALLBACK_PHOTOS =
+      List.of(
+          "https://images.unsplash.com/photo-1499750310107-5fef28a66643?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1506784983877-45594efa4cbe?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?auto=format&fit=crop&w=1000&q=85",
+          "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=1000&q=85");
+
   private static final List<FallbackCardTemplate> SPORT_FALLBACK_CARDS =
       List.of(
           new FallbackCardTemplate(
@@ -561,6 +590,11 @@ public class MotivationService {
     String theme = detectTheme(goal).name();
     List<MotivationImage> existingImages =
         motivationImageRepository.findTop50ByThemeAndHiddenGloballyFalseOrderByCreatedAtDesc(theme);
+    int validExistingCount =
+        (int)
+            existingImages.stream()
+                .filter(image -> isDisplayableImageUrl(image.getImagePath()))
+                .count();
 
     Set<String> existingSourceUrls =
         existingImages.stream()
@@ -591,17 +625,18 @@ public class MotivationService {
                               .createdAt(OffsetDateTime.now())
                               .build()));
       existingSourceUrls.add(image.getSourceUrl());
-      if (existingSourceUrls.size() >= limit) {
+      validExistingCount++;
+      if (validExistingCount >= limit) {
         return;
       }
     }
 
     List<FallbackCardTemplate> templates = fallbackTemplates(goal);
     int variant = 0;
-    while (existingSourceUrls.size() < limit && variant < Math.max(limit * 2, templates.size())) {
+    while (validExistingCount < limit && variant < Math.max(limit * 3, templates.size())) {
       FallbackCardTemplate template = templates.get(variant % templates.size());
       String sourceUrl =
-          "fallback://"
+          "fallback-photo://"
               + detectTheme(goal).name().toLowerCase(Locale.ROOT)
               + "/"
               + template.slug()
@@ -612,7 +647,7 @@ public class MotivationService {
         continue;
       }
 
-      String imagePath = createFallbackImage(goal, template);
+      String imagePath = fallbackPhotoUrl(goal, variant);
       motivationImageRepository.save(
           MotivationImage.builder()
               .goal(goal)
@@ -628,6 +663,7 @@ public class MotivationService {
               .reportCount(0)
               .createdAt(OffsetDateTime.now())
               .build());
+      validExistingCount++;
     }
   }
 
@@ -884,7 +920,7 @@ public class MotivationService {
     }
     String normalized = imageUrl.toLowerCase(Locale.ROOT);
     if (normalized.startsWith("/uploads/")) {
-      return true;
+      return !normalized.endsWith(".svg");
     }
     if (!(normalized.startsWith("http://") || normalized.startsWith("https://"))) {
       return false;
@@ -896,12 +932,15 @@ public class MotivationService {
         || normalized.contains("commons.wikimedia.org/wiki/")) {
       return false;
     }
+    if (normalized.contains("images.unsplash.com/")) {
+      return true;
+    }
     return normalized.matches(".*\\.(jpg|jpeg|png|webp|gif)(\\?.*)?$");
   }
 
   private String sanitizeFeedTitle(String rawTitle, Goal goal) {
     String title = rawTitle == null ? "" : rawTitle.trim();
-    if (title.isBlank() || looksTechnicalText(title)) {
+    if (title.isBlank() || looksTechnicalText(title) || isGoalEcho(title, goal)) {
       if (goal.getTitle() == null || goal.getTitle().isBlank()) {
         return "Визуальная мотивация";
       }
@@ -915,13 +954,35 @@ public class MotivationService {
 
   private String sanitizeFeedDescription(String rawDescription, Goal goal) {
     String text = rawDescription == null ? "" : rawDescription.trim();
-    if (text.isBlank() || looksTechnicalText(text)) {
-      return "Продолжай движение к цели: " + goal.getTitle();
+    if (text.isBlank() || looksTechnicalText(text) || isGoalEcho(text, goal)) {
+      return "Короткий фокус сегодня превращает намерение в реальный прогресс.";
     }
     if (text.length() > 180) {
       text = text.substring(0, 180).trim() + "…";
     }
     return text;
+  }
+
+  private boolean isGoalEcho(String value, Goal goal) {
+    String text = normalizeFeedText(value);
+    String title = normalizeFeedText(goal.getTitle());
+    String description = normalizeFeedText(goal.getDescription());
+    return !text.isBlank()
+        && ((title.length() > 3 && (text.equals(title) || text.contains(title)))
+            || (description.length() > 8
+                && (text.equals(description)
+                    || text.contains(description)
+                    || description.contains(text))));
+  }
+
+  private String normalizeFeedText(String value) {
+    return value == null
+        ? ""
+        : value.toLowerCase(Locale.ROOT)
+            .replace('ё', 'е')
+            .replaceAll("[^\\p{L}\\p{Nd}\\s]", " ")
+            .replaceAll("\\s+", " ")
+            .trim();
   }
 
   private boolean looksTechnicalText(String value) {
@@ -944,13 +1005,14 @@ public class MotivationService {
   }
 
   private String buildCaption(Goal goal, MotivationImage image) {
-    String goalTitle =
-        goal.getTitle() == null || goal.getTitle().isBlank() ? "вашей цели" : goal.getTitle();
     String description = image.getDescription();
-    if (description != null && !looksTechnicalText(description) && !description.isBlank()) {
+    if (description != null
+        && !looksTechnicalText(description)
+        && !isGoalEcho(description, goal)
+        && !description.isBlank()) {
       return description;
     }
-    return "Каждая Pomodoro-сессия приближает тебя к цели: " + goalTitle + ".";
+    return "Каждая Pomodoro-сессия делает следующий шаг проще и заметнее.";
   }
 
   private String buildGoalReason(Goal goal, MotivationImage image) {
@@ -971,6 +1033,17 @@ public class MotivationService {
       case STUDY -> STUDY_FALLBACK_CARDS;
       default -> GENERAL_FALLBACK_CARDS;
     };
+  }
+
+  private String fallbackPhotoUrl(Goal goal, int variant) {
+    List<String> photos =
+        switch (detectTheme(goal)) {
+          case SPORT -> SPORT_FALLBACK_PHOTOS;
+          case CODE -> CODE_FALLBACK_PHOTOS;
+          case STUDY -> STUDY_FALLBACK_PHOTOS;
+          default -> GENERAL_FALLBACK_PHOTOS;
+        };
+    return photos.get(Math.floorMod(variant, photos.size()));
   }
 
   private String createFallbackImage(Goal goal, FallbackCardTemplate template) {

@@ -172,7 +172,7 @@ describe('MotivationPage', () => {
     fireEvent.error(image);
 
     await waitFor(() => {
-      expect((image as HTMLImageElement).src).toContain('data:image/svg+xml');
+      expect((image as HTMLImageElement).src).toContain('https://picsum.photos/seed/');
     });
   });
 
