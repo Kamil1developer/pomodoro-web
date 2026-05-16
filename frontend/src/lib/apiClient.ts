@@ -94,7 +94,7 @@ async function parseError(response: Response): Promise<HttpError> {
   if (response.status === 413) {
     return new HttpError(
       413,
-      'Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.',
+      'Сервер отклонил файл как слишком большой. Загрузите изображение до 100 МБ или уменьшите размер фото.',
       'PAYLOAD_TOO_LARGE'
     );
   }

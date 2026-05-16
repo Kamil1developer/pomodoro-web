@@ -4,7 +4,14 @@ import { minutesToHours, shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
 import type { FocusSession, GoalExperience, ReportItem, TaskItem } from '../types/api';
 
-const MAX_REPORT_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+const MAX_REPORT_FILE_SIZE_BYTES = 100 * 1024 * 1024;
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} КБ`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)} МБ`;
+}
 
 function formatElapsed(totalSeconds: number): string {
   const safe = Math.max(0, totalSeconds);
@@ -230,7 +237,9 @@ export function FocusPage() {
       return;
     }
     if (reportFile.size > MAX_REPORT_FILE_SIZE_BYTES) {
-      setError('Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.');
+      setError(
+        `Файл слишком большой: ${formatFileSize(reportFile.size)}. Загрузите изображение до 100 МБ или уменьшите размер фото.`
+      );
       return;
     }
 
@@ -240,6 +249,15 @@ export function FocusPage() {
       setReportComment('');
       await refreshGoalData(selectedGoal.id);
     } catch (err) {
+      const status = (err as { status?: number }).status;
+      if (status === 413 && reportFile) {
+        setError(
+          `Сервер отклонил файл как слишком большой. Выбранный файл: ${formatFileSize(
+            reportFile.size
+          )}. Перезапустите backend после обновления или уменьшите размер изображения.`
+        );
+        return;
+      }
       setError((err as Error).message);
     }
   }
@@ -388,7 +406,9 @@ export function FocusPage() {
                 const file = event.target.files?.[0] ?? null;
                 if (file && file.size > MAX_REPORT_FILE_SIZE_BYTES) {
                   setReportFile(null);
-                  setError('Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.');
+                  setError(
+                    `Файл слишком большой: ${formatFileSize(file.size)}. Загрузите изображение до 100 МБ или уменьшите размер фото.`
+                  );
                   event.target.value = '';
                   return;
                 }
@@ -397,6 +417,9 @@ export function FocusPage() {
               }}
               required
             />
+            {reportFile ? (
+              <small className="muted">Выбран файл: {reportFile.name} · {formatFileSize(reportFile.size)}</small>
+            ) : null}
             <textarea
               value={reportComment}
               onChange={(event) => setReportComment(event.target.value)}

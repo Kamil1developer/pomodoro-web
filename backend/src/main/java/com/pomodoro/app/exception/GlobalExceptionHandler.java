@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
         .body(
             new ErrorResponse(
                 "PAYLOAD_TOO_LARGE",
-                "Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.",
+                "Сервер отклонил файл как слишком большой. Загрузите изображение до 100 МБ или уменьшите размер фото.",
                 List.of(),
                 OffsetDateTime.now()));
   }
