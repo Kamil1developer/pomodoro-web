@@ -49,6 +49,7 @@ function transactionLabel(type: WalletTransaction['type']): string {
 export function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [fullName, setFullName] = useState('');
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -69,6 +70,7 @@ export function ProfilePage() {
         api.getWalletTransactions()
       ]);
       setProfile(data);
+      setAvatarLoadFailed(false);
       setFullName(data.fullName);
       setTransactions(walletHistory.transactions);
     } catch (err) {
@@ -85,6 +87,7 @@ export function ProfilePage() {
     try {
       const data = await api.updateProfile({ fullName: fullName.trim() || undefined });
       setProfile(data);
+      setAvatarLoadFailed(false);
       setSuccess('Профиль сохранён.');
     } catch (err) {
       setError((err as Error).message);
@@ -104,6 +107,7 @@ export function ProfilePage() {
     try {
       const data = await api.uploadAvatar(file);
       setProfile(data);
+      setAvatarLoadFailed(false);
       setSuccess('Аватар обновлён.');
     } catch (err) {
       setError((err as Error).message);
@@ -114,6 +118,11 @@ export function ProfilePage() {
   }
 
   const history = useMemo(() => profile?.goalHistory ?? [], [profile]);
+  const avatarLetter = (profile?.fullName || profile?.email || 'П').slice(0, 1).toUpperCase();
+  const avatarUrl =
+    profile?.avatarPath && !avatarLoadFailed
+      ? `${resolveAssetUrl(profile.avatarPath)}?v=${encodeURIComponent(profile.avatarPath)}`
+      : null;
   const wallet = profile?.wallet ?? {
     balance: 0,
     initialBalance: 0,
@@ -134,11 +143,16 @@ export function ProfilePage() {
       <section className="card profile-header-card">
         <div className="profile-header-main">
           <div className="profile-avatar-wrap">
-            {profile.avatarPath ? (
-              <img className="profile-avatar" src={resolveAssetUrl(profile.avatarPath)} alt={profile.fullName} />
+            {avatarUrl ? (
+              <img
+                className="profile-avatar"
+                src={avatarUrl}
+                alt={profile.fullName}
+                onError={() => setAvatarLoadFailed(true)}
+              />
             ) : (
               <div className="profile-avatar profile-avatar-fallback" aria-hidden="true">
-                {profile.fullName.slice(0, 1).toUpperCase()}
+                {avatarLetter}
               </div>
             )}
           </div>
