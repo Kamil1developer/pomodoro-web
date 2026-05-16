@@ -8,6 +8,7 @@ const { apiMock } = vi.hoisted(() => ({
     getProfile: vi.fn(),
     updateProfile: vi.fn(),
     uploadAvatar: vi.fn(),
+    getProfileAvatar: vi.fn(),
     getWalletTransactions: vi.fn()
   }
 }));
@@ -73,9 +74,18 @@ const profileResponse = {
 describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn(() => 'blob:avatar')
+    });
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn()
+    });
     apiMock.getProfile.mockResolvedValue(profileResponse);
     apiMock.updateProfile.mockResolvedValue(profileResponse);
     apiMock.uploadAvatar.mockResolvedValue({ ...profileResponse, avatarPath: '/uploads/avatars/test.png' });
+    apiMock.getProfileAvatar.mockResolvedValue(new Blob(['avatar'], { type: 'image/png' }));
     apiMock.getWalletTransactions.mockResolvedValue({
       transactions: [
         {

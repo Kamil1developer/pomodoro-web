@@ -72,17 +72,25 @@ public class StorageService {
   }
 
   public void deletePublicPath(String publicPath) {
-    if (publicPath == null || !publicPath.startsWith("/uploads/")) {
-      return;
-    }
-    String relative = publicPath.substring("/uploads/".length());
-    Path path = root.resolve(relative).normalize();
-    if (!path.startsWith(root)) {
+    Path path = resolvePublicPath(publicPath);
+    if (path == null) {
       return;
     }
     try {
       Files.deleteIfExists(path);
     } catch (IOException ignored) {
     }
+  }
+
+  public Path resolvePublicPath(String publicPath) {
+    if (publicPath == null || !publicPath.startsWith("/uploads/")) {
+      return null;
+    }
+    String relative = publicPath.substring("/uploads/".length());
+    Path path = root.resolve(relative).normalize();
+    if (!path.startsWith(root)) {
+      return null;
+    }
+    return path;
   }
 }

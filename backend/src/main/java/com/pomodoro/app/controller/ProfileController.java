@@ -4,7 +4,9 @@ import com.pomodoro.app.dto.ProfileDtos;
 import com.pomodoro.app.service.ProfileService;
 import com.pomodoro.app.util.AuthUtil;
 import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -37,6 +39,15 @@ public class ProfileController {
   @PostMapping(path = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
   public ProfileDtos.ProfileResponse uploadAvatar(@RequestPart("file") MultipartFile file) {
     return profileService.uploadAvatar(AuthUtil.currentUserId(), file);
+  }
+
+  @GetMapping("/avatar/content")
+  public ResponseEntity<byte[]> getAvatarContent() {
+    ProfileService.AvatarContent avatar = profileService.getAvatarContent(AuthUtil.currentUserId());
+    return ResponseEntity.ok()
+        .cacheControl(CacheControl.noCache())
+        .contentType(MediaType.parseMediaType(avatar.contentType()))
+        .body(avatar.bytes());
   }
 
   @GetMapping("/goals")

@@ -15,6 +15,9 @@ import com.pomodoro.app.repository.GoalRepository;
 import com.pomodoro.app.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -41,6 +44,8 @@ public class ProfileService {
   private final GoalCommitmentService goalCommitmentService;
   private final StorageService storageService;
   private final WalletService walletService;
+
+  public record AvatarContent(byte[] bytes, String contentType) {}
 
   public ProfileService(
       UserRepository userRepository,
@@ -160,6 +165,27 @@ public class ProfileService {
       storageService.deletePublicPath(previousAvatar);
     }
     return getProfile(userId);
+  }
+
+  @Transactional(readOnly = true)
+  public AvatarContent getAvatarContent(Long userId) {
+    User user = loadUser(userId);
+    if (user.getAvatarPath() == null || user.getAvatarPath().isBlank()) {
+      throw new AppException(HttpStatus.NOT_FOUND, "Аватар ещё не загружен.");
+    }
+    Path path = storageService.resolvePublicPath(user.getAvatarPath());
+    if (path == null || !Files.isRegularFile(path) || !Files.isReadable(path)) {
+      throw new AppException(HttpStatus.NOT_FOUND, "Файл аватара не найден.");
+    }
+    try {
+      String contentType = Files.probeContentType(path);
+      if (contentType == null || !contentType.startsWith("image/")) {
+        contentType = "application/octet-stream";
+      }
+      return new AvatarContent(Files.readAllBytes(path), contentType);
+    } catch (IOException e) {
+      throw new AppException(HttpStatus.NOT_FOUND, "Не удалось прочитать файл аватара.");
+    }
   }
 
   private ProfileDtos.ProfileStatsResponse buildStats(

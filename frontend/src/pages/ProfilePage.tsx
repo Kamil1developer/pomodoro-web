@@ -1,6 +1,6 @@
 import { type ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, resolveAssetUrl } from '../lib/apiClient';
+import { api } from '../lib/apiClient';
 import { minutesToHours, shortDate, shortDateTime } from '../lib/format';
 import type { ProfileGoalHistoryItem, ProfileResponse, WalletTransaction } from '../types/api';
 
@@ -50,6 +50,7 @@ export function ProfilePage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [fullName, setFullName] = useState('');
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
+  const [avatarObjectUrl, setAvatarObjectUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -63,26 +64,35 @@ export function ProfilePage() {
 
   useEffect(() => {
     if (!profile?.avatarPath || avatarLoadFailed) {
+      setAvatarObjectUrl(null);
       return;
     }
 
     let cancelled = false;
-    const image = new Image();
+    let objectUrl: string | null = null;
 
-    image.onload = () => {
-      if (!cancelled && image.naturalWidth === 0) {
-        setAvatarLoadFailed(true);
-      }
-    };
-    image.onerror = () => {
-      if (!cancelled) {
-        setAvatarLoadFailed(true);
-      }
-    };
-    image.src = `${resolveAssetUrl(profile.avatarPath)}?v=${encodeURIComponent(profile.avatarPath)}`;
+    api
+      .getProfileAvatar()
+      .then((blob) => {
+        if (cancelled) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(blob);
+        setAvatarObjectUrl(objectUrl);
+        setAvatarLoadFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setAvatarObjectUrl(null);
+          setAvatarLoadFailed(true);
+        }
+      });
 
     return () => {
       cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
     };
   }, [avatarLoadFailed, profile?.avatarPath]);
 
@@ -144,10 +154,7 @@ export function ProfilePage() {
 
   const history = useMemo(() => profile?.goalHistory ?? [], [profile]);
   const avatarLetter = (profile?.fullName || profile?.email || 'П').slice(0, 1).toUpperCase();
-  const avatarUrl =
-    profile?.avatarPath && !avatarLoadFailed
-      ? `${resolveAssetUrl(profile.avatarPath)}?v=${encodeURIComponent(profile.avatarPath)}`
-      : null;
+  const avatarUrl = avatarObjectUrl && !avatarLoadFailed ? avatarObjectUrl : null;
   const wallet = profile?.wallet ?? {
     balance: 0,
     initialBalance: 0,

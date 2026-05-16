@@ -164,6 +164,40 @@ async function request<T>(
   return (await response.json()) as T;
 }
 
+async function requestBlob(
+  path: string,
+  options: RequestInit = {},
+  withAuth = true,
+  retry = true
+): Promise<Blob> {
+  const headers = new Headers(options.headers ?? {});
+  const tokens = getTokens();
+
+  if (withAuth && tokens?.accessToken) {
+    headers.set('Authorization', `Bearer ${tokens.accessToken}`);
+  }
+
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
+    headers
+  });
+
+  if (response.status === 401 && withAuth && retry) {
+    const refreshed = await refreshTokens();
+    if (refreshed) {
+      return requestBlob(path, options, withAuth, false);
+    }
+    clearTokens();
+    throw new HttpError(401, 'Unauthorized');
+  }
+
+  if (!response.ok) {
+    throw await parseError(response);
+  }
+
+  return response.blob();
+}
+
 export const api = {
   register(payload: { email: string; password: string; fullName?: string }) {
     return request<TokenResponse>('/auth/register', {
@@ -399,6 +433,9 @@ export const api = {
       method: 'POST',
       body: form
     });
+  },
+  getProfileAvatar() {
+    return requestBlob('/profile/avatar/content');
   },
   getProfileGoals() {
     return request<ProfileGoalsResponse>('/profile/goals');
