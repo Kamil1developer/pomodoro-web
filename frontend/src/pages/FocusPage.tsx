@@ -4,6 +4,8 @@ import { minutesToHours, shortDateTime } from '../lib/format';
 import { useAppShellContext } from '../lib/useAppShellContext';
 import type { FocusSession, GoalExperience, ReportItem, TaskItem } from '../types/api';
 
+const MAX_REPORT_FILE_SIZE_BYTES = 25 * 1024 * 1024;
+
 function formatElapsed(totalSeconds: number): string {
   const safe = Math.max(0, totalSeconds);
   const hours = String(Math.floor(safe / 3600)).padStart(2, '0');
@@ -227,6 +229,10 @@ export function FocusPage() {
     if (!selectedGoal || !reportFile || !hasTodayTasks) {
       return;
     }
+    if (reportFile.size > MAX_REPORT_FILE_SIZE_BYTES) {
+      setError('Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.');
+      return;
+    }
 
     try {
       await api.uploadReport(selectedGoal.id, reportFile, reportComment);
@@ -378,7 +384,17 @@ export function FocusPage() {
             <input
               type="file"
               accept="image/*"
-              onChange={(event) => setReportFile(event.target.files?.[0] ?? null)}
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                if (file && file.size > MAX_REPORT_FILE_SIZE_BYTES) {
+                  setReportFile(null);
+                  setError('Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.');
+                  event.target.value = '';
+                  return;
+                }
+                setError(null);
+                setReportFile(file);
+              }}
               required
             />
             <textarea

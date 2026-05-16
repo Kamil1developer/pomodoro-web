@@ -9,6 +9,8 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -35,6 +37,17 @@ public class GlobalExceptionHandler {
   public ResponseEntity<ErrorResponse> handleAccessDenied(AccessDeniedException ex) {
     return ResponseEntity.status(HttpStatus.FORBIDDEN)
         .body(new ErrorResponse("FORBIDDEN", "Access denied", List.of(), OffsetDateTime.now()));
+  }
+
+  @ExceptionHandler({MaxUploadSizeExceededException.class, MultipartException.class})
+  public ResponseEntity<ErrorResponse> handleUploadTooLarge(Exception ex) {
+    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
+        .body(
+            new ErrorResponse(
+                "PAYLOAD_TOO_LARGE",
+                "Файл слишком большой. Загрузите изображение до 25 МБ или уменьшите размер фото.",
+                List.of(),
+                OffsetDateTime.now()));
   }
 
   @ExceptionHandler(Exception.class)
