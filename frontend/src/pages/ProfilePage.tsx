@@ -61,6 +61,31 @@ export function ProfilePage() {
     void loadProfile();
   }, []);
 
+  useEffect(() => {
+    if (!profile?.avatarPath || avatarLoadFailed) {
+      return;
+    }
+
+    let cancelled = false;
+    const image = new Image();
+
+    image.onload = () => {
+      if (!cancelled && image.naturalWidth === 0) {
+        setAvatarLoadFailed(true);
+      }
+    };
+    image.onerror = () => {
+      if (!cancelled) {
+        setAvatarLoadFailed(true);
+      }
+    };
+    image.src = `${resolveAssetUrl(profile.avatarPath)}?v=${encodeURIComponent(profile.avatarPath)}`;
+
+    return () => {
+      cancelled = true;
+    };
+  }, [avatarLoadFailed, profile?.avatarPath]);
+
   async function loadProfile() {
     setLoading(true);
     setError(null);
